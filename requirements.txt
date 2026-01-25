@@ -1,0 +1,6 @@
+python-binance
+pandas
+numpy
+requests
+google-cloud-firestore
+functions-framework

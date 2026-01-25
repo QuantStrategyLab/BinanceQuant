@@ -1,0 +1,47 @@
+name: Binance Quant
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: 1. 拉取最新代码
+        uses: actions/checkout@v3
+
+      - name: 2. 生成 GCP 密钥
+        run: echo '${{ secrets.GCP_SA_KEY }}' > gcp-key.json
+
+      - name: 3. 准备/更新依赖环境（智能复用）
+        run: |
+          # 如果还没有虚拟环境，先创建并完整安装一次
+          if [ ! -d "venv" ]; then
+            python3 -m venv venv
+            venv/bin/pip install -U pip
+            venv/bin/pip install -r requirements.txt
+            sha256sum requirements.txt | cut -d' ' -f1 > .venv_requirements_hash
+          else
+            CURR_HASH=$(sha256sum requirements.txt | cut -d' ' -f1)
+            if [ -f ".venv_requirements_hash" ] && [ "$CURR_HASH" = "$(cat .venv_requirements_hash)" ]; then
+              echo "requirements.txt 未变化，跳过依赖安装，直接复用 venv。"
+            else
+              echo "requirements.txt 有变化，更新依赖环境。"
+              venv/bin/pip install -U pip
+              venv/bin/pip install -r requirements.txt
+              echo "$CURR_HASH" > .venv_requirements_hash
+            fi
+          fi
+
+      - name: 4. 执行交易策略
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+        run: |
+          venv/bin/python main.py
+        env:
+          BINANCE_API_KEY: ${{ secrets.BINANCE_API_KEY }}
+          BINANCE_API_SECRET: ${{ secrets.BINANCE_API_SECRET }}
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          GOOGLE_APPLICATION_CREDENTIALS: ./gcp-key.json

@@ -1377,9 +1377,10 @@ def main():
             f"{symbol}({meta['weight']:.0%},RS:{meta['relative_score']:.2f})"
             for symbol, meta in selected_candidates.items()
         ) if selected_candidates else "无候选，保持防守"
-        log_buffer.append(f"🗓️ 月更趋势池: {pool_text}")
-        log_buffer.append(f"🧪 稳健质量排名: {ranking_preview}")
-        log_buffer.append(f"🎯 轮动候选: {selected_text}")
+        log_buffer.append(f"🗓️ 上游官方月度池: {pool_text}")
+        log_buffer.append(f"🧪 下游观察候选面板: {ranking_preview}")
+        log_buffer.append(f"🎯 本轮实际轮动决策: {selected_text}")
+        log_buffer.append("ℹ️ 观察面板仅用于展示/排序，不等同于上游官方月度池。")
 
         # --- Trend: monthly pool + relative-BTC rotation ---
         for symbol, config in runtime_trend_universe.items():

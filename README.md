@@ -35,7 +35,11 @@ Runs hourly; signals are daily trend and risk, not high-frequency.
 
 **Universe:** Prefer the upstream live pool. Source hierarchy is: fresh upstream Firestore payload → last known good upstream payload from state → validated local upstream file fallback → static universe emergency fallback.
 
-**Monthly pool:** Upstream publishes a 5-coin production pool; this repo consumes it. “Stable quality” favours: stable trend structure, relative BTC strength, liquidity, low liquidity variance, trend persistence.
+**Official input pool:** Upstream publishes a 5-coin production pool; this repo consumes that pool as the monthly official input set.
+
+**Observation panel:** The repo may also show a local stable-quality ranking / observation panel for display and diagnostics. That panel is not the upstream official pool line and is not itself the execution target.
+
+**Actual rotation target:** The live trend sleeve still acts only on the final top-2 rotation decision, or on a defensive "no candidate / keep current stance" outcome when no symbol qualifies.
 
 **Factors:** SMA20/60/200, 20/60/120d returns, 20d vol, ATR14, 30/90/180d avg quote volume, trend persistence, relative BTC strength, risk-adjusted momentum.
 
@@ -89,15 +93,27 @@ Runs hourly; signals are daily trend and risk, not high-frequency.
   "pool_size": 5,
   "symbols": {
     "TRXUSDT": {"base_asset": "TRX"},
-    "ETHUSDT": {"base_asset": "ETH"}
+    "ETHUSDT": {"base_asset": "ETH"},
+    "BCHUSDT": {"base_asset": "BCH"},
+    "NEARUSDT": {"base_asset": "NEAR"},
+    "LTCUSDT": {"base_asset": "LTC"}
   },
   "symbol_map": {
     "TRXUSDT": {"base_asset": "TRX"},
-    "ETHUSDT": {"base_asset": "ETH"}
+    "ETHUSDT": {"base_asset": "ETH"},
+    "BCHUSDT": {"base_asset": "BCH"},
+    "NEARUSDT": {"base_asset": "NEAR"},
+    "LTCUSDT": {"base_asset": "LTC"}
   },
   "source_project": "crypto-leader-rotation"
 }
 ```
+
+In runtime output, keep these layers separate:
+
+- upstream official pool: the monthly symbols accepted from the upstream contract
+- downstream observation/candidate panel: local display and ranking context
+- actual rotation decision: the final top-2 action set, or a defensive no-candidate stance
 
 **Validation and degraded mode:**
 

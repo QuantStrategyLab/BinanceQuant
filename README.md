@@ -3,6 +3,12 @@
 `BinanceQuant` 是一个运行在币安现货账户上的自动化加密货币量化交易项目。  
 项目以 `BTC` 为核心底仓，通过动态定投与分批止盈管理长期仓位，同时用主流山寨币趋势轮动争取超额收益。系统兼容币安现货与活期理财账户，支持自动赎回、USDT 现货水位维护、`BNB` 手续费燃料补仓、Telegram 推送以及 Firestore 状态持久化。
 
+当前默认生产接入方式是：
+
+- 上游项目 `CryptoLeaderRotation` 每月发布一次生产版 `core_major` 趋势池
+- 本项目优先读取上游发布的当前生效池
+- 若上游发布不可用，则自动回退到本项目内置静态趋势池
+
 ## 项目结构
 
 - `main.py`
@@ -57,25 +63,25 @@ btc_target_ratio = 0.14 + 0.16 * ln(1 + total_equity / 10000)
 
 ## 趋势轮动策略
 
-### 候选宇宙
+### 候选宇宙来源
 
-趋势轮动候选范围包括以下主流山寨交易对：
+趋势轮动候选范围默认不再由本仓库手工维护，而是优先读取上游 `CryptoLeaderRotation` 发布的生产版 `live_pool_legacy.json` / Firestore 当前生效池。
 
-- `ETHUSDT`
-- `SOLUSDT`
-- `XRPUSDT`
-- `LINKUSDT`
-- `AVAXUSDT`
-- `ADAUSDT`
-- `DOGEUSDT`
-- `TRXUSDT`
-- `ATOMUSDT`
-- `LTCUSDT`
-- `BCHUSDT`
+当前读取优先级如下：
+
+1. Firestore `strategy/CRYPTO_LEADER_ROTATION_LIVE_POOL`
+2. 本地 `live_pool_legacy.json`
+3. 本仓库内置静态 `TREND_UNIVERSE`
+
+内置静态池仍然保留，用途是：
+
+- 上游发布暂时不可用时的安全回退
+- 本地离线调试
+- 首次接入阶段的兼容保底
 
 ### 月更趋势池
 
-每月会先从候选宇宙中筛出一个 `5` 币趋势池。  
+上游每月会先生成一个 `5` 币生产趋势池，本项目直接消费该结果。  
 这一步采用“稳健质量排序”，核心目标不是追逐最尖锐的短线强势，而是优先挑选：
 
 - 趋势结构稳定
@@ -114,7 +120,7 @@ btc_target_ratio = 0.14 + 0.16 * ln(1 + total_equity / 10000)
 - 风险调整后动量
   用动量除以波动率，避免单纯追高高波动币。
 
-策略还会对上月已入池的币给予轻微连续性加分，以减少月度频繁换池。
+上游策略还会对上月已入池的币给予轻微连续性加分，以减少月度频繁换池。
 
 ### 最终持仓选择
 
@@ -188,6 +194,71 @@ btc_target_ratio = 0.14 + 0.16 * ln(1 + total_equity / 10000)
 - 月更趋势池所属月份
 - 当前有效趋势池名单
 
+当上游动态趋势池发生增删标的时，本项目还会额外处理两类兼容状态：
+
+- 新加入的标的自动补默认持仓结构
+- 已被移出当前动态池但仍有历史持仓的标的会进入 retired 状态，直到完成清仓
+
+这保证了月更换池不会因为状态缺失或旧键残留而中断实盘脚本。
+
+## 上游趋势池接入
+
+默认生产接入契约来自上游仓库 `CryptoLeaderRotation`，当前推荐的读取方式是：
+
+1. 先读 Firestore 当前生效池摘要
+2. Firestore 不可用时读本地同步的 `live_pool_legacy.json`
+3. 两者都不可用时回退静态趋势池
+
+### Firestore 当前生效池
+
+默认集合和文档：
+
+- collection: `strategy`
+- document: `CRYPTO_LEADER_ROTATION_LIVE_POOL`
+
+脚本默认从这个文档读取 `symbol_map`。如果需要覆盖默认值，可设置：
+
+- `TREND_POOL_FIRESTORE_COLLECTION`
+- `TREND_POOL_FIRESTORE_DOCUMENT`
+
+### 本地文件回退
+
+如果 Firestore 不可用，脚本会继续查找 `live_pool_legacy.json`。
+
+可显式指定文件路径：
+
+- `TREND_POOL_FILE=/abs/path/to/live_pool_legacy.json`
+
+如果不显式指定，脚本会尝试常见本地路径，例如：
+
+- `../CryptoLeaderRotation/data/output/live_pool_legacy.json`
+- `../crypto-leader-rotation/data/output/live_pool_legacy.json`
+
+### 文件格式
+
+本项目兼容的 `live_pool_legacy.json` 结构如下：
+
+```json
+{
+  "as_of_date": "2026-03-13",
+  "pool_size": 5,
+  "symbols": {
+    "TRXUSDT": {"base_asset": "TRX"},
+    "ETHUSDT": {"base_asset": "ETH"},
+    "BCHUSDT": {"base_asset": "BCH"},
+    "NEARUSDT": {"base_asset": "NEAR"},
+    "LTCUSDT": {"base_asset": "LTC"}
+  }
+}
+```
+
+### 动态池运行规则
+
+- 当前 active 动态池用于新的趋势候选与买入决策
+- 已被移出动态池但尚未清仓的标的仍会继续参与估值、风控和卖出
+- 不会因为月更切池而直接丢失旧持仓状态
+- 当动态池读取失败时，策略会回退到静态池继续运行
+
 ## 环境变量
 
 运行前请配置以下环境变量：
@@ -198,6 +269,12 @@ btc_target_ratio = 0.14 + 0.16 * ln(1 + total_equity / 10000)
 - `TG_CHAT_ID`
 - `GCP_SA_KEY`
 - `BTC_STATUS_REPORT_INTERVAL_HOURS`（可选，BTC 心跳推送间隔，单位小时，默认 `24`）
+
+如需显式指定上游趋势池来源，还可选配：
+
+- `TREND_POOL_FILE`
+- `TREND_POOL_FIRESTORE_COLLECTION`
+- `TREND_POOL_FIRESTORE_DOCUMENT`
 
 如果运行环境使用 `Google Cloud` 默认凭证，也可以按实际部署方式提供 Firestore 访问权限。
 
@@ -223,12 +300,20 @@ export BINANCE_API_SECRET="your_binance_secret"
 export TG_TOKEN="your_telegram_bot_token"
 export TG_CHAT_ID="your_telegram_chat_id"
 export GCP_SA_KEY="/path/to/service-account.json"
+export TREND_POOL_FILE="/path/to/live_pool_legacy.json"
 ```
 
 如果你使用的是本地服务账号文件，也可以额外设置：
 
 ```bash
 export GOOGLE_APPLICATION_CREDENTIALS="$GCP_SA_KEY"
+```
+
+如果你准备直接读取上游发布到 Firestore 的当前生效池，还可按需设置：
+
+```bash
+export TREND_POOL_FIRESTORE_COLLECTION="strategy"
+export TREND_POOL_FIRESTORE_DOCUMENT="CRYPTO_LEADER_ROTATION_LIVE_POOL"
 ```
 
 ### 3. 启动实盘脚本
@@ -246,6 +331,8 @@ python3 main.py
 ```cron
 0 * * * * cd /path/to/BinanceQuant && /path/to/.venv/bin/python main.py >> run.log 2>&1
 ```
+
+如果你依赖上游月更发布的动态池，建议在上游完成月更发布后继续沿用同一份 Firestore / `live_pool_legacy.json` 输出，而不是在下游额外维护一份手工候选列表。
 
 ## 回测与研究
 

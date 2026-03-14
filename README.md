@@ -100,41 +100,62 @@ Optional:
 | `TREND_POOL_FIRESTORE_COLLECTION` | Firestore collection for live pool (default `strategy`) |
 | `TREND_POOL_FIRESTORE_DOCUMENT` | Firestore document for live pool (default `CRYPTO_LEADER_ROTATION_LIVE_POOL`) |
 
-## Quick deploy
+## Deploy (self-hosted runner + workflow)
 
-1. **Python 3.9+**, create venv and install deps:
+The repo is intended to run on a **self-hosted GitHub Actions runner** (e.g. a VPS). The workflow checks out code, installs dependencies, writes GCP credentials from a secret to `gcp-key.json`, then runs `main.py`. No manual “download and cron on your PC” flow.
+
+### 1. Self-hosted runner
+
+- In the repo: **Settings → Actions → Runners**, add a new self-hosted runner (Linux recommended).
+- On the machine (e.g. Oracle Cloud VPS): install the runner, register it, and keep it running so it can pick up jobs.
+
+### 2. Workflow and schedule
+
+- **`.github/workflows/main.yml`** defines the job: checkout → write `gcp-key.json` from secret → create/update venv and install deps → run `venv/bin/python main.py`.
+- **Triggers:** `push` to `main` (job runs; strategy step runs only on `workflow_dispatch` or `schedule`), and optionally **schedule** (e.g. hourly) so the strategy runs periodically without a push.
+- To run the strategy on a schedule, add `schedule` to the workflow `on:` block, for example:
+
+```yaml
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 * * * *'   # every hour at :00
+```
+
+- The “执行交易策略” step is gated by `if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'`, so it does not run on every push unless you change that condition.
+
+### 3. Repository secrets
+
+In **Settings → Secrets and variables → Actions**, add:
+
+| Secret | Description |
+|--------|-------------|
+| `BINANCE_API_KEY` | Binance API key |
+| `BINANCE_API_SECRET` | Binance API secret |
+| `TG_TOKEN` | Telegram bot token |
+| `TG_CHAT_ID` | Telegram chat ID |
+| `GCP_SA_KEY` | Full JSON content of the GCP service account key (written by the workflow to `gcp-key.json` as `GOOGLE_APPLICATION_CREDENTIALS`) |
+
+The workflow passes these into the “执行交易策略” step; it does not use a `.env` file on the runner.
+
+### 4. GCP / Firestore
+
+- The service account in `GCP_SA_KEY` must have **Firestore** access (read/write) for the project that hosts the Firestore database used by this app.
+- **Invalid grant / account not found:** Usually means the key is for a deleted or wrong service account, or the key is from another project. Re-create a key for the correct account in the same project as Firestore and update the `GCP_SA_KEY` secret.
+
+### Local run (optional)
+
+For local testing only:
 
 ```bash
 cd /path/to/BinanceQuant
-python3 -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-```
-
-2. **Set environment variables** (example; use your own values):
-
-```bash
-export BINANCE_API_KEY="your_binance_api_key"
-export BINANCE_API_SECRET="your_binance_api_secret"
-export TG_TOKEN="your_telegram_bot_token"
-export TG_CHAT_ID="your_telegram_chat_id"
-export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your-gcp-sa.json"
-# Optional: upstream trend pool
-export TREND_POOL_FILE="/path/to/live_pool_legacy.json"
-# Optional: BTC status report interval (hours)
-export BTC_STATUS_REPORT_INTERVAL_HOURS=24
-```
-
-3. **Run once:**
-
-```bash
-python3 main.py
-```
-
-4. **Schedule hourly** (cron):
-
-```cron
-0 * * * * cd /path/to/BinanceQuant && /path/to/BinanceQuant/.venv/bin/python main.py >> /path/to/BinanceQuant/run.log 2>&1
+export BINANCE_API_KEY=... BINANCE_API_SECRET=... TG_TOKEN=... TG_CHAT_ID=...
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/gcp-sa.json
+python main.py
 ```
 
 ## Backtest

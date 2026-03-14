@@ -341,7 +341,8 @@ def get_trade_state():
         if doc.exists:
             return normalize_trade_state(doc.to_dict())
         return build_default_state()
-    except Exception:
+    except Exception as e:
+        print(f"Firestore get state failed: {e}")
         return None
 
 def set_trade_state(data):
@@ -860,7 +861,11 @@ def main():
                     return
 
         state = get_trade_state()
-        if state is None: raise Exception("Failed to load Firestore state")
+        if state is None:
+            raise Exception(
+                "Failed to load Firestore state. Check GCP credentials (GCP_SA_KEY / GOOGLE_APPLICATION_CREDENTIALS), "
+                "service account validity, and Firestore API enablement."
+            )
         state = normalize_trade_state(state)
         runtime_trend_universe = get_runtime_trend_universe(state)
         

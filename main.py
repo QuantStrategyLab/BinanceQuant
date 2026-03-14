@@ -1,4 +1,5 @@
 import os
+import json
 import requests
 import pandas as pd
 import math
@@ -6,12 +7,13 @@ import numpy as np
 import time
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from binance.client import Client
 from binance.exceptions import BinanceAPIException
 from google.cloud import firestore
 import traceback
 
-TREND_UNIVERSE = {
+STATIC_TREND_UNIVERSE = {
     "ETHUSDT": {"base_asset": "ETH"},
     "SOLUSDT": {"base_asset": "SOL"},
     "XRPUSDT": {"base_asset": "XRP"},
@@ -24,6 +26,7 @@ TREND_UNIVERSE = {
     "LTCUSDT": {"base_asset": "LTC"},
     "BCHUSDT": {"base_asset": "BCH"},
 }
+TREND_UNIVERSE = STATIC_TREND_UNIVERSE.copy()
 
 TREND_POOL_SIZE = 5
 ROTATION_TOP_N = 2
@@ -34,12 +37,173 @@ POOL_MEMBERSHIP_BONUS = 0.10
 BNB_FUEL_SYMBOL = "BNBUSDT"
 BNB_FUEL_ASSET = "BNB"
 
+DEFAULT_LIVE_POOL_LEGACY_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "CryptoLeaderRotation"
+    / "data"
+    / "output"
+    / "live_pool_legacy.json"
+)
+DEFAULT_TREND_POOL_FIRESTORE_COLLECTION = "strategy"
+DEFAULT_TREND_POOL_FIRESTORE_DOCUMENT = "CRYPTO_LEADER_ROTATION_LIVE_POOL"
+RETIRED_TREND_POSITIONS_KEY = "retired_trend_positions"
+
 
 def get_env_int(name, default):
     try:
         return int(os.getenv(name, str(default)))
     except Exception:
         return int(default)
+
+
+def default_trend_symbol_state():
+    return {"is_holding": False, "entry_price": 0.0, "highest_price": 0.0}
+
+
+def safe_float(value, default=0.0):
+    try:
+        return float(value)
+    except Exception:
+        return float(default)
+
+
+def infer_base_asset(symbol):
+    return symbol[:-4] if isinstance(symbol, str) and symbol.endswith("USDT") else symbol
+
+
+def is_trend_symbol_state(value):
+    return isinstance(value, dict) and any(
+        key in value for key in ("is_holding", "entry_price", "highest_price")
+    )
+
+
+def normalize_symbol_state(value):
+    state = default_trend_symbol_state()
+    if not isinstance(value, dict):
+        return state
+    state["is_holding"] = bool(value.get("is_holding", state["is_holding"]))
+    state["entry_price"] = safe_float(value.get("entry_price", state["entry_price"]))
+    state["highest_price"] = safe_float(value.get("highest_price", state["highest_price"]))
+    return state
+
+
+def has_active_position(position_state):
+    return bool(
+        position_state.get("is_holding")
+        or safe_float(position_state.get("entry_price", 0.0)) > 0.0
+        or safe_float(position_state.get("highest_price", 0.0)) > 0.0
+    )
+
+
+def parse_trend_universe_mapping(payload):
+    if not isinstance(payload, dict):
+        return {}
+
+    symbols = payload.get("symbol_map")
+    if not isinstance(symbols, dict):
+        symbols = payload.get("symbols")
+    if not isinstance(symbols, dict):
+        return {}
+
+    parsed = {}
+    for symbol, meta in symbols.items():
+        if not isinstance(symbol, str) or not symbol.endswith("USDT"):
+            continue
+        if not isinstance(meta, dict):
+            continue
+        base_asset = meta.get("base_asset")
+        if not isinstance(base_asset, str) or not base_asset:
+            continue
+        parsed[symbol] = {"base_asset": base_asset}
+    return parsed
+
+
+def get_default_live_pool_candidates():
+    candidates = []
+    search_roots = {
+        Path(__file__).resolve().parents[1],
+        Path.cwd().resolve(),
+        Path.home(),
+        Path("/home/ubuntu"),
+    }
+    repo_names = ("CryptoLeaderRotation", "crypto-leader-rotation")
+
+    for root in search_roots:
+        for repo_name in repo_names:
+            candidate = root / repo_name / "data" / "output" / "live_pool_legacy.json"
+            if candidate not in candidates:
+                candidates.append(candidate)
+
+    if DEFAULT_LIVE_POOL_LEGACY_PATH not in candidates:
+        candidates.insert(0, DEFAULT_LIVE_POOL_LEGACY_PATH)
+    return candidates
+
+
+def load_trend_universe_from_firestore():
+    collection = os.getenv("TREND_POOL_FIRESTORE_COLLECTION", DEFAULT_TREND_POOL_FIRESTORE_COLLECTION)
+    document = os.getenv("TREND_POOL_FIRESTORE_DOCUMENT", DEFAULT_TREND_POOL_FIRESTORE_DOCUMENT)
+
+    try:
+        payload = db.collection(collection).document(document).get()
+        if not payload.exists:
+            print(f"动态趋势池 Firestore 文档不存在，继续尝试本地文件: {collection}/{document}")
+            return {}
+
+        parsed = parse_trend_universe_mapping(payload.to_dict())
+        if not parsed:
+            print(f"动态趋势池 Firestore 文档结构无效，继续尝试本地文件: {collection}/{document}")
+            return {}
+
+        print(f"已从 Firestore 加载动态趋势池: {collection}/{document} | symbols={','.join(parsed.keys())}")
+        return parsed
+    except Exception as exc:
+        print(f"读取 Firestore 动态趋势池失败，继续尝试本地文件: {exc}")
+        return {}
+
+
+def load_trend_universe_from_live_pool():
+    """Prefer the published live pool, but safely fall back to the static universe."""
+    configured_path = os.getenv("TREND_POOL_FILE")
+    fallback = STATIC_TREND_UNIVERSE.copy()
+
+    try:
+        if configured_path:
+            configured_pool_path = Path(configured_path).expanduser()
+            if not configured_pool_path.exists():
+                print(f"显式配置的趋势池文件不存在，回退静态 TREND_UNIVERSE: {configured_pool_path}")
+                return fallback
+
+            payload = json.loads(configured_pool_path.read_text(encoding="utf-8"))
+            parsed = parse_trend_universe_mapping(payload)
+            if not parsed:
+                print(f"显式配置的趋势池文件结构无效，回退静态 TREND_UNIVERSE: {configured_pool_path}")
+                return fallback
+
+            print(f"已加载动态趋势池文件: {configured_pool_path} | symbols={','.join(parsed.keys())}")
+            return parsed
+
+        firestore_pool = load_trend_universe_from_firestore()
+        if firestore_pool:
+            return firestore_pool
+
+        for pool_path in get_default_live_pool_candidates():
+            if not pool_path.exists():
+                continue
+
+            payload = json.loads(pool_path.read_text(encoding="utf-8"))
+            parsed = parse_trend_universe_mapping(payload)
+            if not parsed:
+                print(f"趋势池文件结构无效，继续尝试其他路径: {pool_path}")
+                continue
+
+            print(f"已加载动态趋势池文件: {pool_path} | symbols={','.join(parsed.keys())}")
+            return parsed
+
+        print("未找到可用的动态趋势池发布产物，回退静态 TREND_UNIVERSE")
+        return fallback
+    except Exception as exc:
+        print(f"读取动态趋势池失败，回退静态 TREND_UNIVERSE: {exc}")
+        return fallback
 
 
 def build_default_state():
@@ -54,9 +218,10 @@ def build_default_state():
         "rotation_pool_last_month": "",
         "rotation_pool_symbols": [],
         "last_btc_status_report_bucket": "",
+        RETIRED_TREND_POSITIONS_KEY: {},
     }
     for symbol in TREND_UNIVERSE:
-        state[symbol] = {"is_holding": False, "entry_price": 0.0, "highest_price": 0.0}
+        state[symbol] = default_trend_symbol_state()
     return state
 
 
@@ -66,6 +231,8 @@ def normalize_trade_state(state):
         return normalized
 
     for key, value in normalized.items():
+        if key in TREND_UNIVERSE or key == RETIRED_TREND_POSITIONS_KEY:
+            continue
         if isinstance(value, dict):
             current = state.get(key, {})
             merged = value.copy()
@@ -74,7 +241,93 @@ def normalize_trade_state(state):
             normalized[key] = merged
         else:
             normalized[key] = state.get(key, value)
+
+    existing_retired = state.get(RETIRED_TREND_POSITIONS_KEY, {})
+    retired_positions = {}
+
+    for symbol in TREND_UNIVERSE:
+        merged_source = {}
+        if isinstance(existing_retired, dict) and is_trend_symbol_state(existing_retired.get(symbol)):
+            merged_source.update(existing_retired.get(symbol, {}))
+        if is_trend_symbol_state(state.get(symbol)):
+            merged_source.update(state.get(symbol, {}))
+        normalized[symbol] = normalize_symbol_state(merged_source)
+
+    if isinstance(existing_retired, dict):
+        for symbol, payload in existing_retired.items():
+            if symbol in TREND_UNIVERSE or not is_trend_symbol_state(payload):
+                continue
+            merged = normalize_symbol_state(payload)
+            if has_active_position(merged):
+                retired_positions[symbol] = {
+                    **merged,
+                    "base_asset": str(payload.get("base_asset") or infer_base_asset(symbol)),
+                }
+
+    for symbol, payload in state.items():
+        if (
+            symbol in normalized
+            or symbol == RETIRED_TREND_POSITIONS_KEY
+            or not isinstance(symbol, str)
+            or not symbol.endswith("USDT")
+            or not is_trend_symbol_state(payload)
+        ):
+            continue
+        merged = normalize_symbol_state(payload)
+        if has_active_position(merged):
+            retired_positions[symbol] = {
+                **merged,
+                "base_asset": str(payload.get("base_asset") or infer_base_asset(symbol)),
+            }
+
+    normalized[RETIRED_TREND_POSITIONS_KEY] = retired_positions
     return normalized
+
+
+def get_runtime_trend_universe(state):
+    runtime = {symbol: meta.copy() for symbol, meta in TREND_UNIVERSE.items()}
+    retired_positions = state.get(RETIRED_TREND_POSITIONS_KEY, {})
+    if isinstance(retired_positions, dict):
+        for symbol, payload in retired_positions.items():
+            if symbol in runtime:
+                continue
+            runtime[symbol] = {
+                "base_asset": str(payload.get("base_asset") or infer_base_asset(symbol)),
+                "retired": True,
+            }
+    return runtime
+
+
+def get_symbol_trade_state(state, symbol):
+    if symbol in TREND_UNIVERSE:
+        return normalize_symbol_state(state.get(symbol, {}))
+    retired_positions = state.get(RETIRED_TREND_POSITIONS_KEY, {})
+    if isinstance(retired_positions, dict):
+        return normalize_symbol_state(retired_positions.get(symbol, {}))
+    return default_trend_symbol_state()
+
+
+def set_symbol_trade_state(state, symbol, symbol_state):
+    normalized_symbol_state = normalize_symbol_state(symbol_state)
+    retired_positions = state.setdefault(RETIRED_TREND_POSITIONS_KEY, {})
+    if symbol in TREND_UNIVERSE:
+        state[symbol] = normalized_symbol_state
+        if isinstance(retired_positions, dict):
+            retired_positions.pop(symbol, None)
+        return
+
+    if not isinstance(retired_positions, dict):
+        retired_positions = {}
+        state[RETIRED_TREND_POSITIONS_KEY] = retired_positions
+
+    if has_active_position(normalized_symbol_state):
+        existing = retired_positions.get(symbol, {})
+        retired_positions[symbol] = {
+            **normalized_symbol_state,
+            "base_asset": str(existing.get("base_asset") or infer_base_asset(symbol)),
+        }
+    else:
+        retired_positions.pop(symbol, None)
 
 # ==========================================
 # 1. 状态管理与 TG 推送
@@ -93,7 +346,8 @@ def get_trade_state():
 
 def set_trade_state(data):
     try:
-        doc_ref.set(data, merge=True)
+        persisted_state = normalize_trade_state(data)
+        doc_ref.set(persisted_state)
     except Exception as e:
         print(f"Firestore写入失败: {e}")
 
@@ -493,7 +747,8 @@ def build_stable_quality_pool(indicators_map, btc_snapshot, previous_pool):
 
 def refresh_rotation_pool(state, indicators_map, btc_snapshot):
     current_month = datetime.now(timezone.utc).strftime("%Y-%m")
-    cached_pool = state.get("rotation_pool_symbols", [])
+    available_symbols = set(TREND_UNIVERSE)
+    cached_pool = [symbol for symbol in state.get("rotation_pool_symbols", []) if symbol in available_symbols]
     if state.get("rotation_pool_last_month") == current_month and cached_pool:
         return cached_pool, []
 
@@ -507,7 +762,7 @@ def refresh_rotation_pool(state, indicators_map, btc_snapshot):
         state["rotation_pool_symbols"] = selected_pool
         return selected_pool, ranking
 
-    fallback_pool = cached_pool if cached_pool else ["ETHUSDT", "SOLUSDT", "XRPUSDT", "LINKUSDT", "AVAXUSDT"]
+    fallback_pool = cached_pool if cached_pool else list(TREND_UNIVERSE.keys())[:TREND_POOL_SIZE]
     state["rotation_pool_last_month"] = current_month
     state["rotation_pool_symbols"] = fallback_pool
     return fallback_pool, []
@@ -576,6 +831,8 @@ def get_tradable_qty(symbol, total_qty, prices, min_bnb_value):
 # ==========================================
 def main():
     # --- 核心配置 ---
+    global TREND_UNIVERSE
+    TREND_UNIVERSE = load_trend_universe_from_live_pool()
     ATR_MULTIPLIER = 2.5
     CIRCUIT_BREAKER_PCT = -0.05
     MIN_BNB_VALUE, BUY_BNB_AMOUNT = 10.0, 15.0
@@ -606,6 +863,7 @@ def main():
         state = get_trade_state()
         if state is None: raise Exception("无法获取Firestore状态")
         state = normalize_trade_state(state)
+        runtime_trend_universe = get_runtime_trend_universe(state)
         
         # --- 资产核算与资金分配 ---
         u_total = get_total_balance(client, 'USDT')
@@ -628,7 +886,7 @@ def main():
         # 虚拟账本：资金池划分
         prices, balances = {}, {}
         trend_val = 0.0
-        for sym, cfg in TREND_UNIVERSE.items():
+        for sym, cfg in runtime_trend_universe.items():
             base_asset = cfg['base_asset']
             p = float(client.get_avg_price(symbol=sym)['price'])
             b = get_total_balance(client, base_asset)
@@ -699,16 +957,20 @@ def main():
             return 
 
         if trend_daily_pnl <= CIRCUIT_BREAKER_PCT:
-            for sym in TREND_UNIVERSE:
+            for sym, cfg in runtime_trend_universe.items():
                 tradable_qty = balances[sym]
                 if tradable_qty * prices[sym] > 10:
                     try:
-                        base_asset = TREND_UNIVERSE[sym]['base_asset']
+                        base_asset = cfg['base_asset']
                         qty = format_qty(client, sym, tradable_qty)
                         ensure_asset_available(client, base_asset, qty, tg_token, tg_chat_id)
                         client.order_market_sell(symbol=sym, quantity=qty)
                         balances[sym] = max(0.0, balances[sym] - qty)
-                        state[sym] = {"is_holding": False, "entry_price": 0.0, "highest_price": 0.0}
+                        set_symbol_trade_state(
+                            state,
+                            sym,
+                            {"is_holding": False, "entry_price": 0.0, "highest_price": 0.0},
+                        )
                     except Exception as e: send_tg_msg(tg_token, tg_chat_id, f"❌ 熔断抛售失败 {sym}: {e}")
             state.update({"is_circuit_broken": True})
             set_trade_state(state)
@@ -729,10 +991,10 @@ def main():
         log_buffer.append(f"🎯 轮动候选: {selected_text}")
 
         # --- 趋势策略（月更稳健质量池 + 相对 BTC 强弱轮动）---
-        for symbol, config in TREND_UNIVERSE.items():
+        for symbol, config in runtime_trend_universe.items():
             curr_price = prices[symbol]
             indicators = trend_indicators.get(symbol)
-            st = state.get(symbol, {"is_holding": False, "entry_price": 0.0, "highest_price": 0.0})
+            st = get_symbol_trade_state(state, symbol)
             
             if st['is_holding']:
                 sell_reason = ""
@@ -752,20 +1014,28 @@ def main():
                         tradable_qty = balances[symbol]
                         qty = format_qty(client, symbol, tradable_qty)
                         if qty <= 0:
-                            state[symbol] = {"is_holding": False, "entry_price": 0.0, "highest_price": 0.0}
+                            set_symbol_trade_state(
+                                state,
+                                symbol,
+                                {"is_holding": False, "entry_price": 0.0, "highest_price": 0.0},
+                            )
                             continue
                         ensure_asset_available(client, config['base_asset'], qty, tg_token, tg_chat_id)
                         client.order_market_sell(symbol=symbol, quantity=qty, newClientOrderId=sell_order_id)
                         balances[symbol] = max(0.0, balances[symbol] - qty)
                         u_total += qty * curr_price
-                        state[symbol] = {"is_holding": False, "entry_price": 0.0, "highest_price": 0.0}
+                        set_symbol_trade_state(
+                            state,
+                            symbol,
+                            {"is_holding": False, "entry_price": 0.0, "highest_price": 0.0},
+                        )
                         set_trade_state(state) 
                         send_tg_msg(tg_token, tg_chat_id, f"🚨 [趋势卖出] {symbol}\n原因: {sell_reason}\n价格: ${curr_price:.2f}")
                     except Exception as e: pass
             else:
                 candidate_meta = selected_candidates.get(symbol)
                 if indicators and candidate_meta and curr_price > indicators['sma20'] and curr_price > indicators['sma60'] and curr_price > indicators['sma200']:
-                    current_trend_val = sum(balances[sym] * prices[sym] for sym in TREND_UNIVERSE)
+                    current_trend_val = sum(balances[sym] * prices[sym] for sym in runtime_trend_universe)
                     current_dca_val = balances['BTCUSDT'] * prices['BTCUSDT']
                     current_total_equity = u_total + fuel_val + current_trend_val + current_dca_val
                     current_btc_target_ratio = get_dynamic_btc_target_ratio(current_total_equity)
@@ -780,7 +1050,11 @@ def main():
                             usdt_cost = qty * curr_price
                             ensure_asset_available(client, 'USDT', usdt_cost, tg_token, tg_chat_id)
                             client.order_market_buy(symbol=symbol, quantity=qty, newClientOrderId=buy_order_id)
-                            state[symbol] = {"is_holding": True, "entry_price": curr_price, "highest_price": curr_price}
+                            set_symbol_trade_state(
+                                state,
+                                symbol,
+                                {"is_holding": True, "entry_price": curr_price, "highest_price": curr_price},
+                            )
                             balances[symbol] += qty
                             u_total -= usdt_cost
                             set_trade_state(state)
@@ -791,7 +1065,7 @@ def main():
                             )
                         except Exception as e: pass
             
-            st = state.get(symbol, st)
+            st = get_symbol_trade_state(state, symbol)
             score_text = ""
             if indicators and indicators['vol20'] > 0:
                 rel_score = (
@@ -803,7 +1077,7 @@ def main():
                 score_text = f" | 相对BTC: {rel_score:.2f} | 动量: {abs_momentum:.2%}"
             log_buffer.append(f" └ {symbol}: {'📈持仓' if st['is_holding'] else '💤空仓'} | 现价: ${curr_price:.4f}{score_text}")
 
-        current_trend_val = sum(balances[sym] * prices[sym] for sym in TREND_UNIVERSE)
+        current_trend_val = sum(balances[sym] * prices[sym] for sym in runtime_trend_universe)
         dca_val = balances['BTCUSDT'] * prices['BTCUSDT']
         total_equity = u_total + fuel_val + current_trend_val + dca_val
         btc_target_ratio = get_dynamic_btc_target_ratio(total_equity)

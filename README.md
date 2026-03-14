@@ -11,6 +11,7 @@ Automated crypto quant for Binance spot: BTC DCA core plus altcoin trend rotatio
 - **run_challenger_robustness.py** — Additive robustness runner for baseline vs challenger shadow-replay comparisons.
 - **run_shadow_candidate_monitor.py** — Dual-track shadow monitor for the official baseline and the `challenger_topk_60` candidate.
 - **run_monthly_shadow_monitor.py** — Operator-friendly monthly wrapper for the dual-track shadow monitor.
+- **run_monthly_ai_briefing.py** — Reporting-only monthly AI briefing package generator for human review and ChatGPT interpretation.
 - **requirements.txt** — Python deps.
 
 ## Strategy Overview
@@ -221,6 +222,18 @@ Or the local helper target:
 make monthly-shadow-monitor
 ```
 
+To generate the reporting-only AI briefing package after the monitor outputs exist:
+
+```bash
+python3 run_monthly_ai_briefing.py
+```
+
+Or the local helper target:
+
+```bash
+make monthly-ai-briefing
+```
+
 ## Notes
 
 - The upstream CryptoLeaderRotation project is the primary selector and contract owner for the monthly live pool.
@@ -277,6 +290,30 @@ Recommendation policy:
   - challenger stays ahead and also clears the recent-breadth and sensitivity gates
 
 Real execution remains baseline-only. The challenger track is shadow-only and cannot place orders.
+
+## Monthly AI Briefing
+
+Operator flow:
+
+1. Run upstream monthly build in CryptoLeaderRotation:
+   `make monthly-shadow-build`
+2. Run the downstream shadow monitor:
+   `make monthly-shadow-monitor`
+3. Generate the AI briefing package:
+   `make monthly-ai-briefing`
+
+Generated files:
+
+- `reports/monthly_ai_review.md`
+- `reports/monthly_ai_review.json`
+- `reports/monthly_chatgpt_prompt.md`
+
+The briefing package is reporting-only:
+
+- baseline remains official/live
+- `challenger_topk_60` remains shadow-only
+- no production switch is implied
+- `monthly_chatgpt_prompt.md` is designed to be pasted into ChatGPT for interpretation
 
 ## Telegram
 

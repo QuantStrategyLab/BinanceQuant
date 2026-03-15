@@ -23,6 +23,8 @@ Automated crypto quant for Binance spot: BTC DCA core plus altcoin trend rotatio
 - **main.py** — Live script (run hourly).
 - **strategy_core.py** — Shared pure strategy math used by live execution and research backtests.
 - **runtime_support.py** — Runtime/report helpers shared by live execution and dry-run replay.
+- **runtime_config_support.py** — Environment parsing and live-runtime bootstrap helpers so `main.py` can stay orchestration-focused.
+- **degraded_mode_support.py** — Degraded-mode fallback ladder and trend-pool source state helpers.
 - **live_services.py** — Firestore state and Telegram notification adapters for live operation.
 - **exchange_support.py** — Spot balance, earn-buffer, and exchange quantity-format helpers.
 - **trend_pool_support.py** — Upstream trend-pool contract parsing, validation, and fallback helpers.

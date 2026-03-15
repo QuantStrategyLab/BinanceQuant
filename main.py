@@ -16,6 +16,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from binance.client import Client
 import traceback
+from degraded_mode_support import (
+    format_trend_pool_source_logs as dm_format_trend_pool_source_logs,
+    load_trend_universe_from_live_pool as dm_load_trend_universe_from_live_pool,
+    resolve_trend_pool_source as dm_resolve_trend_pool_source,
+    update_trend_pool_state as dm_update_trend_pool_state,
+)
 from exchange_support import (
     ensure_asset_available as ex_ensure_asset_available,
     format_qty as ex_format_qty,
@@ -37,6 +43,13 @@ from runtime_support import (
     runtime_call_client,
     runtime_notify,
     runtime_set_trade_state,
+)
+from runtime_config_support import (
+    build_live_runtime as rc_build_live_runtime,
+    get_env_bool as rc_get_env_bool,
+    get_env_csv as rc_get_env_csv,
+    get_env_int as rc_get_env_int,
+    load_cycle_execution_settings as rc_load_cycle_execution_settings,
 )
 from strategy_core import (
     DEFAULT_POOL_SCORE_WEIGHTS,
@@ -122,24 +135,15 @@ class BalanceFetchError(RuntimeError):
 
 
 def get_env_int(name, default):
-    try:
-        return int(os.getenv(name, str(default)))
-    except Exception:
-        return int(default)
+    return rc_get_env_int(name, default)
 
 
 def get_env_bool(name, default=False):
-    value = os.getenv(name)
-    if value is None:
-        return bool(default)
-    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
+    return rc_get_env_bool(name, default)
 
 
 def get_env_csv(name, default_values):
-    raw = os.getenv(name)
-    if raw is None or not str(raw).strip():
-        return list(default_values)
-    return [item.strip() for item in str(raw).split(",") if item.strip()]
+    return rc_get_env_csv(name, default_values)
 
 
 def default_trend_symbol_state():
@@ -264,85 +268,41 @@ def build_static_trend_pool_resolution(*, now_utc=None, messages=None):
 
 
 def resolve_trend_pool_source(state=None, *, now_utc=None):
-    """Resolve the upstream trend pool with explicit degraded-state fallbacks."""
-    now_utc = now_utc or datetime.now(timezone.utc)
-    settings = get_trend_pool_contract_settings()
-    messages = []
-
-    firestore_result = load_trend_pool_from_firestore(now_utc=now_utc, settings=settings)
-    if firestore_result.get("ok"):
-        resolution = build_trend_pool_resolution(
-            firestore_result,
-            source_kind="fresh_upstream",
-            degraded=False,
-            now_utc=now_utc,
-            messages=[f"Loaded fresh upstream trend pool from {firestore_result['source_label']}"],
-        )
-        return resolution
-    messages.extend(firestore_result.get("errors", []))
-    messages.extend(firestore_result.get("warnings", []))
-
-    last_good_result = get_last_known_good_trend_pool(state or {}, now_utc=now_utc, settings=settings)
-    if last_good_result.get("ok"):
-        return build_trend_pool_resolution(
-            last_good_result,
-            source_kind="last_known_good",
-            degraded=True,
-            now_utc=now_utc,
-            messages=messages + ["Using last known good upstream trend pool after fresh upstream validation failed."],
-        )
-    messages.extend(last_good_result.get("errors", []))
-
-    configured_path = os.getenv("TREND_POOL_FILE")
-    file_candidates = []
-    if configured_path:
-        file_candidates.append(Path(configured_path).expanduser())
-    file_candidates.extend(get_default_live_pool_candidates())
-
-    seen_candidates = set()
-    for pool_path in file_candidates:
-        pool_path = Path(pool_path)
-        if str(pool_path) in seen_candidates:
-            continue
-        seen_candidates.add(str(pool_path))
-
-        file_result = load_trend_pool_from_file(pool_path, now_utc=now_utc, settings=settings)
-        if file_result.get("ok"):
-            return build_trend_pool_resolution(
-                file_result,
-                source_kind="local_file",
-                degraded=True,
-                now_utc=now_utc,
-                messages=messages + [f"Using validated local trend pool fallback from {pool_path}"],
-            )
-        messages.extend(file_result.get("errors", []))
-        messages.extend(file_result.get("warnings", []))
-
-    return build_static_trend_pool_resolution(
+    return dm_resolve_trend_pool_source(
+        state=state,
         now_utc=now_utc,
-        messages=messages + ["Falling back to built-in static trend universe as last resort."],
+        default_live_pool_legacy_path=DEFAULT_LIVE_POOL_LEGACY_PATH,
+        default_firestore_collection=DEFAULT_TREND_POOL_FIRESTORE_COLLECTION,
+        default_firestore_document=DEFAULT_TREND_POOL_FIRESTORE_DOCUMENT,
+        last_good_payload_key=TREND_POOL_LAST_GOOD_PAYLOAD_KEY,
+        static_trend_universe=STATIC_TREND_UNIVERSE,
+        max_age_days_default=DEFAULT_TREND_POOL_MAX_AGE_DAYS,
+        acceptable_modes_default=DEFAULT_TREND_POOL_ACCEPTABLE_MODES,
+        expected_pool_size_default=TREND_POOL_SIZE,
     )
 
 
 def load_trend_universe_from_live_pool(state=None, *, now_utc=None):
-    resolution = resolve_trend_pool_source(state=state, now_utc=now_utc)
-    return resolution["symbol_map"], resolution
+    return dm_load_trend_universe_from_live_pool(
+        state=state,
+        now_utc=now_utc,
+        default_live_pool_legacy_path=DEFAULT_LIVE_POOL_LEGACY_PATH,
+        default_firestore_collection=DEFAULT_TREND_POOL_FIRESTORE_COLLECTION,
+        default_firestore_document=DEFAULT_TREND_POOL_FIRESTORE_DOCUMENT,
+        last_good_payload_key=TREND_POOL_LAST_GOOD_PAYLOAD_KEY,
+        static_trend_universe=STATIC_TREND_UNIVERSE,
+        max_age_days_default=DEFAULT_TREND_POOL_MAX_AGE_DAYS,
+        acceptable_modes_default=DEFAULT_TREND_POOL_ACCEPTABLE_MODES,
+        expected_pool_size_default=TREND_POOL_SIZE,
+    )
 
 
 def update_trend_pool_state(state, resolution):
-    state["trend_pool_source"] = str(resolution.get("source_kind", ""))
-    state["trend_pool_source_detail"] = str(resolution.get("source_label", ""))
-    state["trend_pool_is_fresh"] = bool(resolution.get("is_fresh", False))
-    state["trend_pool_degraded"] = bool(resolution.get("degraded", False))
-    state["trend_pool_as_of_date"] = str(resolution.get("as_of_date", ""))
-    state["trend_pool_version"] = str(resolution.get("version", ""))
-    state["trend_pool_mode"] = str(resolution.get("mode", ""))
-    state["trend_pool_source_project"] = str(resolution.get("source_project", ""))
-    state["trend_pool_loaded_at"] = str(resolution.get("loaded_at", ""))
-    state["trend_pool_messages"] = [str(message) for message in resolution.get("messages", [])]
-
-    if resolution.get("source_kind") == "fresh_upstream":
-        state[TREND_POOL_LAST_GOOD_PAYLOAD_KEY] = dict(resolution.get("payload", {}))
+    dm_update_trend_pool_state(
+        state,
+        resolution,
+        last_good_payload_key=TREND_POOL_LAST_GOOD_PAYLOAD_KEY,
+    )
 
 
 def build_default_state():
@@ -898,14 +858,8 @@ def get_tradable_qty(symbol, total_qty, prices, min_bnb_value):
 # 3. Core strategy
 # ==========================================
 def build_live_runtime(now_utc=None):
-    runtime_now = now_utc or datetime.now(timezone.utc)
-    return ExecutionRuntime(
-        dry_run=False,
-        now_utc=runtime_now,
-        api_key=os.getenv("BINANCE_API_KEY", ""),
-        api_secret=os.getenv("BINANCE_API_SECRET", ""),
-        tg_token=os.getenv("TG_TOKEN", ""),
-        tg_chat_id=os.getenv("TG_CHAT_ID", ""),
+    return rc_build_live_runtime(
+        now_utc=now_utc,
         state_loader=get_trade_state,
         state_writer=set_trade_state,
         notifier=lambda **kwargs: send_tg_msg(kwargs["token"], kwargs["chat_id"], kwargs["text"]),
@@ -957,18 +911,11 @@ def _load_cycle_state(runtime, report, allow_new_trend_entries_on_degraded):
 
 
 def _append_trend_pool_source_logs(log_buffer, trend_pool_resolution, allow_new_trend_entries):
-    source_summary = (
-        f"📡 趋势池来源: {trend_pool_resolution['source_kind']} | "
-        f"mode={trend_pool_resolution['mode'] or 'unknown'} | "
-        f"version={trend_pool_resolution['version'] or 'unknown'} | "
-        f"as_of={trend_pool_resolution['as_of_date'] or 'n/a'} | "
-        f"project={trend_pool_resolution['source_project']}"
-    )
-    append_log(log_buffer, source_summary)
-    for message in trend_pool_resolution.get("messages", [])[-3:]:
-        append_log(log_buffer, f"   · {message}")
-    if trend_pool_resolution["degraded"] and not allow_new_trend_entries:
-        append_log(log_buffer, "⚠️ 上游趋势池处于降级模式，暂停新的趋势买入并优先沿用既有月池。")
+    for line in dm_format_trend_pool_source_logs(
+        trend_pool_resolution,
+        allow_new_trend_entries=allow_new_trend_entries,
+    ):
+        append_log(log_buffer, line)
 
 
 def _capture_market_snapshot(runtime, report, runtime_trend_universe, log_buffer, min_bnb_value, buy_bnb_amount):
@@ -1589,8 +1536,9 @@ def execute_cycle(runtime):
     atr_multiplier = 2.5
     circuit_breaker_pct = -0.05
     min_bnb_value, buy_bnb_amount = 10.0, 15.0
-    btc_status_report_interval_hours = max(1, min(24, get_env_int("BTC_STATUS_REPORT_INTERVAL_HOURS", 24)))
-    allow_new_trend_entries_on_degraded = get_env_bool("TREND_POOL_ALLOW_NEW_ENTRIES_ON_DEGRADED", False)
+    cycle_settings = rc_load_cycle_execution_settings()
+    btc_status_report_interval_hours = cycle_settings.btc_status_report_interval_hours
+    allow_new_trend_entries_on_degraded = cycle_settings.allow_new_trend_entries_on_degraded
 
     report = build_execution_report(runtime)
     log_buffer = []

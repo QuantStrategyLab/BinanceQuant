@@ -66,6 +66,8 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import main
+from degraded_mode_support import format_trend_pool_source_logs
+import degraded_mode_support
 
 
 def build_payload(as_of_date="2026-03-10", *, mode="core_major"):
@@ -116,11 +118,11 @@ class TrendPoolLoadingTests(unittest.TestCase):
         )
 
         with patch.object(
-            main,
+            degraded_mode_support,
             "load_trend_pool_from_firestore",
             return_value={"ok": False, "errors": ["payload stale"], "warnings": [], "source_label": "firestore:test"},
-        ), patch.object(main, "load_trend_pool_from_file", return_value=file_result), patch.object(
-            main,
+        ), patch.object(degraded_mode_support, "load_trend_pool_from_file", return_value=file_result), patch.object(
+            degraded_mode_support,
             "get_default_live_pool_candidates",
             return_value=[Path("/tmp/live_pool_legacy.json")],
         ):
@@ -211,6 +213,24 @@ class TrendPoolLoadingTests(unittest.TestCase):
 
         self.assertAlmostEqual(total_balance, 2.0)
         self.assertTrue(any("理财余额读取失败" in message for message in log_buffer))
+
+    def test_format_trend_pool_source_logs_highlights_degraded_buy_pause(self):
+        log_lines = format_trend_pool_source_logs(
+            {
+                "source_kind": "last_known_good",
+                "mode": "core_major",
+                "version": "2026-03-10-core_major",
+                "as_of_date": "2026-03-10",
+                "source_project": "crypto-leader-rotation",
+                "messages": ["payload stale", "using cached pool"],
+                "degraded": True,
+            },
+            allow_new_trend_entries=False,
+        )
+
+        self.assertIn("last_known_good", log_lines[0])
+        self.assertTrue(any("payload stale" in line for line in log_lines))
+        self.assertTrue(any("暂停新的趋势买入" in line for line in log_lines))
 
     def test_allocate_trend_buy_budget_renormalizes_remaining_buy_candidates(self):
         selected_candidates = {

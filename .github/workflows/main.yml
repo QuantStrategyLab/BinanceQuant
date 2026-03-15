@@ -8,7 +8,7 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: 1. Checkout latest code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: 2. Prepare or update dependency environment
         run: |

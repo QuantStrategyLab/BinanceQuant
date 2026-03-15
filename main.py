@@ -35,6 +35,9 @@ from live_services import (
     save_trade_state as live_save_trade_state,
     send_tg_msg as live_send_tg_msg,
 )
+from market_snapshot_support import (
+    capture_market_snapshot as ms_capture_market_snapshot,
+)
 from runtime_support import (
     ExecutionRuntime,
     append_report_error,
@@ -919,62 +922,23 @@ def _append_trend_pool_source_logs(log_buffer, trend_pool_resolution, allow_new_
 
 
 def _capture_market_snapshot(runtime, report, runtime_trend_universe, log_buffer, min_bnb_value, buy_bnb_amount):
-    u_total = get_total_balance(runtime.client, "USDT", log_buffer=log_buffer)
-    bnb_total = get_total_balance(runtime.client, BNB_FUEL_ASSET, log_buffer=log_buffer)
-    bnb_price = float(runtime.client.get_avg_price(symbol=BNB_FUEL_SYMBOL)["price"])
-    dynamic_usdt_buffer = max(50.0, min(u_total * 0.05, 300.0))
-
-    if bnb_total * bnb_price < min_bnb_value and u_total >= buy_bnb_amount:
-        report["buy_sell_intents"].append(
-            {
-                "category": "fuel",
-                "action": "buy",
-                "symbol": BNB_FUEL_SYMBOL,
-                "quote_order_qty": buy_bnb_amount,
-            }
-        )
-        try:
-            if not ensure_asset_available_runtime(runtime, report, "USDT", buy_bnb_amount, log_buffer):
-                raise RuntimeError("USDT spot buffer unavailable for BNB top-up")
-            runtime_call_client(
-                runtime,
-                report,
-                method_name="order_market_buy",
-                payload={"symbol": BNB_FUEL_SYMBOL, "quoteOrderQty": buy_bnb_amount},
-                effect_type="order_buy",
-            )
-            u_total -= buy_bnb_amount
-            bnb_total += (buy_bnb_amount * 0.995) / bnb_price
-            append_log(log_buffer, "🔧 BNB 自动补仓完成")
-        except Exception as exc:
-            runtime_notify(runtime, report, f"⚠️ BNB补仓失败: {exc}")
-
-    prices = {}
-    balances = {}
-    for symbol, config in runtime_trend_universe.items():
-        price = float(runtime.client.get_avg_price(symbol=symbol)["price"])
-        balance = get_total_balance(runtime.client, config["base_asset"], log_buffer=log_buffer)
-        prices[symbol] = price
-        balances[symbol] = balance
-
-    btc_price = float(runtime.client.get_avg_price(symbol="BTCUSDT")["price"])
-    btc_balance = get_total_balance(runtime.client, "BTC", log_buffer=log_buffer)
-    prices["BTCUSDT"] = btc_price
-    balances["BTCUSDT"] = btc_balance
-
-    btc_snapshot = resolve_runtime_btc_snapshot(runtime, btc_price, log_buffer)
-    if btc_snapshot is None:
-        raise RuntimeError("BTC indicators insufficient for rotation and DCA")
-
-    return {
-        "u_total": u_total,
-        "fuel_val": bnb_total * bnb_price,
-        "dynamic_usdt_buffer": dynamic_usdt_buffer,
-        "prices": prices,
-        "balances": balances,
-        "btc_snapshot": btc_snapshot,
-        "trend_indicators": resolve_runtime_trend_indicators(runtime),
-    }
+    return ms_capture_market_snapshot(
+        runtime,
+        report,
+        runtime_trend_universe,
+        log_buffer,
+        min_bnb_value,
+        buy_bnb_amount,
+        get_total_balance_fn=get_total_balance,
+        ensure_asset_available_fn=ensure_asset_available_runtime,
+        runtime_call_client_fn=runtime_call_client,
+        runtime_notify_fn=runtime_notify,
+        append_log_fn=append_log,
+        resolve_btc_snapshot_fn=resolve_runtime_btc_snapshot,
+        resolve_trend_indicators_fn=resolve_runtime_trend_indicators,
+        bnb_fuel_symbol=BNB_FUEL_SYMBOL,
+        bnb_fuel_asset=BNB_FUEL_ASSET,
+    )
 
 
 def _compute_portfolio_allocation(runtime_trend_universe, balances, prices, u_total, fuel_val):

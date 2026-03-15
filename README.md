@@ -24,6 +24,7 @@ Automated crypto quant for Binance spot: BTC DCA core plus altcoin trend rotatio
 - **strategy_core.py** — Shared pure strategy math used by live execution and research backtests.
 - **runtime_support.py** — Runtime/report helpers shared by live execution and dry-run replay.
 - **runtime_config_support.py** — Environment parsing and live-runtime bootstrap helpers so `main.py` can stay orchestration-focused.
+- **market_snapshot_support.py** — Market snapshot assembly helpers used by the live cycle and replay regression tests.
 - **degraded_mode_support.py** — Degraded-mode fallback ladder and trend-pool source state helpers.
 - **live_services.py** — Firestore state and Telegram notification adapters for live operation.
 - **exchange_support.py** — Spot balance, earn-buffer, and exchange quantity-format helpers.
@@ -262,6 +263,7 @@ Committed unit tests can be run with:
 python3 -m unittest \
   tests.test_strategy_core \
   tests.test_cycle_replay_runtime \
+  tests.test_market_snapshot_support \
   tests.test_trend_pool_loading \
   -v
 ```

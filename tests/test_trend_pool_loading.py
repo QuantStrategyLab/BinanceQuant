@@ -189,6 +189,73 @@ class TrendPoolLoadingTests(unittest.TestCase):
             "2026-02-15-core_major",
         )
 
+    def test_refresh_rotation_pool_reuses_cached_pool_for_same_upstream_release(self):
+        state = main.build_default_state()
+        state["rotation_pool_symbols"] = ["ETHUSDT", "SOLUSDT", "XRPUSDT", "LTCUSDT", "BCHUSDT"]
+        state["rotation_pool_source_version"] = "2026-03-10-core_major"
+        state["rotation_pool_source_as_of_date"] = "2026-03-10"
+        state["trend_pool_version"] = "2026-03-10-core_major"
+        state["trend_pool_as_of_date"] = "2026-03-10"
+
+        with patch.object(main, "build_stable_quality_pool") as mock_builder:
+            selected_pool, ranking = main.refresh_rotation_pool(
+                state,
+                indicators_map={},
+                btc_snapshot={},
+                now_utc=datetime(2026, 3, 15, tzinfo=timezone.utc),
+            )
+
+        self.assertEqual(selected_pool, ["ETHUSDT", "SOLUSDT", "XRPUSDT", "LTCUSDT", "BCHUSDT"])
+        self.assertEqual(ranking, [])
+        mock_builder.assert_not_called()
+
+    def test_refresh_rotation_pool_rebuilds_when_upstream_release_changes(self):
+        state = main.build_default_state()
+        state["rotation_pool_symbols"] = ["ETHUSDT", "SOLUSDT", "XRPUSDT", "LTCUSDT", "BCHUSDT"]
+        state["rotation_pool_source_version"] = "2026-03-10-core_major"
+        state["rotation_pool_source_as_of_date"] = "2026-03-10"
+        state["trend_pool_version"] = "2026-03-15-core_major"
+        state["trend_pool_as_of_date"] = "2026-03-15"
+
+        with patch.object(
+            main,
+            "build_stable_quality_pool",
+            return_value=(["TRXUSDT", "ETHUSDT", "BCHUSDT"], [{"symbol": "TRXUSDT", "score": 1.0}]),
+        ) as mock_builder:
+            selected_pool, ranking = main.refresh_rotation_pool(
+                state,
+                indicators_map={},
+                btc_snapshot={},
+                now_utc=datetime(2026, 3, 15, tzinfo=timezone.utc),
+            )
+
+        self.assertEqual(selected_pool, ["TRXUSDT", "ETHUSDT", "BCHUSDT"])
+        self.assertEqual(ranking, [{"symbol": "TRXUSDT", "score": 1.0}])
+        self.assertEqual(state["rotation_pool_source_version"], "2026-03-15-core_major")
+        self.assertEqual(state["rotation_pool_source_as_of_date"], "2026-03-15")
+        mock_builder.assert_called_once()
+
+    def test_refresh_rotation_pool_seeds_lock_metadata_from_legacy_month_cache(self):
+        state = main.build_default_state()
+        state["rotation_pool_last_month"] = "2026-03"
+        state["rotation_pool_symbols"] = ["ETHUSDT", "SOLUSDT", "XRPUSDT", "LTCUSDT", "BCHUSDT"]
+        state["trend_pool_version"] = "2026-03-15-core_major"
+        state["trend_pool_as_of_date"] = "2026-03-15"
+
+        with patch.object(main, "build_stable_quality_pool") as mock_builder:
+            selected_pool, ranking = main.refresh_rotation_pool(
+                state,
+                indicators_map={},
+                btc_snapshot={},
+                now_utc=datetime(2026, 3, 15, tzinfo=timezone.utc),
+            )
+
+        self.assertEqual(selected_pool, ["ETHUSDT", "SOLUSDT", "XRPUSDT", "LTCUSDT", "BCHUSDT"])
+        self.assertEqual(ranking, [])
+        self.assertEqual(state["rotation_pool_source_version"], "2026-03-15-core_major")
+        self.assertEqual(state["rotation_pool_source_as_of_date"], "2026-03-15")
+        mock_builder.assert_not_called()
+
     def test_get_total_balance_raises_when_spot_balance_is_unavailable(self):
         class SpotFailureClient:
             def get_asset_balance(self, *, asset):

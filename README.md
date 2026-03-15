@@ -157,9 +157,11 @@ Runs hourly; signals are daily trend and risk, not high-frequency.
 In runtime output, keep these layers separate:
 
 - upstream official pool: the monthly symbols accepted from the upstream contract
-- current monthly execution pool: the local pool retained for this month before final buy gating
+- current monthly execution pool: the local pool retained for this upstream release before final buy gating
 - current execution targets: the symbols that actually qualify for this cycle
 - degraded source status: whether the cycle is using fresh upstream, last-known-good, local-file, or static fallback
+
+The monthly execution pool is rebuilt when the accepted upstream `version` / `as_of_date` changes, then reused across cycles until the next accepted upstream release.
 
 **Validation and degraded mode:**
 

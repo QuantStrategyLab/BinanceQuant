@@ -53,6 +53,8 @@ Runtime output should stay operational:
 - current execution targets and intents
 - exceptions, circuit breakers, and alert-worthy failures
 
+The monthly execution pool is locked to the accepted upstream `version` / `as_of_date`. It is rebuilt when upstream release metadata changes and otherwise reused across cycles.
+
 ## Runtime Trigger Model
 
 - `main.yml` is `workflow_dispatch` only.

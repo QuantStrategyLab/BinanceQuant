@@ -54,6 +54,8 @@ def build_default_state(
         "dca_last_sell_date": "",
         "rotation_pool_last_month": "",
         "rotation_pool_symbols": [],
+        "rotation_pool_source_version": "",
+        "rotation_pool_source_as_of_date": "",
         "last_btc_status_report_bucket": "",
         "trend_pool_source": "",
         "trend_pool_source_detail": "",

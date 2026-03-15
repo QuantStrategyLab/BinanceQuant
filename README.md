@@ -173,7 +173,7 @@ Optional:
 
 ## Deploy (self-hosted runner + workflow)
 
-The repo is intended to run on a **self-hosted GitHub Actions runner** (e.g. a VPS). The workflow checks out code, installs dependencies, writes GCP credentials into a runner temp file inside the execution step, removes that file automatically on exit, then runs `main.py`. No manual “download and cron on your PC” flow.
+The repo is intended to run on a **self-hosted GitHub Actions runner** (e.g. a VPS). The runtime workflow checks out code, installs dependencies, writes GCP credentials into a runner temp file inside the execution step, removes that file automatically on exit, then runs `main.py`. No manual “download and cron on your PC” flow.
 
 ### 1. Self-hosted runner
 
@@ -182,20 +182,19 @@ The repo is intended to run on a **self-hosted GitHub Actions runner** (e.g. a V
 
 ### 2. Workflow and schedule
 
-- **`.github/workflows/main.yml`** defines the job: checkout → create/update venv and install deps → write a temporary GCP credential file inside the execution step → run `venv/bin/python main.py` → clean the temp file via shell trap.
-- **Triggers:** `push` to `main` (job runs; strategy step runs only on `workflow_dispatch` or `schedule`), and optionally **schedule** (e.g. hourly) so the strategy runs periodically without a push.
-- To run the strategy on a schedule, add `schedule` to the workflow `on:` block, for example:
+- **`.github/workflows/ci.yml`** is the push/manual validation workflow. It runs on GitHub-hosted runners and is limited to install/compile/test checks.
+- **`.github/workflows/main.yml`** is the runtime workflow. It runs on the self-hosted runner, prepares the local `venv`, writes a temporary GCP credential file inside the execution step, runs `venv/bin/python main.py`, and cleans the temp file via shell trap.
+- **Triggers:** `ci.yml` runs on `push` to `main` and `workflow_dispatch`; `main.yml` runs on `workflow_dispatch` and `schedule`.
+- To run the strategy on a schedule, keep `schedule` in `main.yml`, for example:
 
 ```yaml
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
   schedule:
     - cron: '0 * * * *'   # every hour at :00
 ```
 
-- The “执行交易策略” step is gated by `if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'`, so it does not run on every push unless you change that condition.
+- Use `Actions -> Runtime -> Run workflow` when you want to trigger a live cycle manually without waiting for the next schedule.
 
 ### 3. Repository secrets
 
@@ -207,9 +206,9 @@ In **Settings → Secrets and variables → Actions**, add:
 | `BINANCE_API_SECRET` | Binance API secret |
 | `TG_TOKEN` | Telegram bot token |
 | `TG_CHAT_ID` | Telegram chat ID |
-| `GCP_SA_KEY` | Full JSON content of the GCP service account key (written by the workflow to a temp file and exported as `GOOGLE_APPLICATION_CREDENTIALS` only for the strategy step) |
+| `GCP_SA_KEY` | Full JSON content of the GCP service account key (written by the runtime workflow to a temp file and exported as `GOOGLE_APPLICATION_CREDENTIALS` only for the strategy step) |
 
-The workflow passes these into the “执行交易策略” step; it does not use a `.env` file on the runner.
+The runtime workflow passes these into the “执行交易策略” step; it does not use a `.env` file on the runner.
 
 ### 4. GCP / Firestore
 

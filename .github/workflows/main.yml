@@ -1,8 +1,6 @@
-name: Binance Quant
+name: Runtime
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
   schedule:
     - cron: '0 * * * *'   # every hour at :00 UTC
@@ -41,7 +39,6 @@ jobs:
           fi
 
       - name: 3. 执行交易策略
-        if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
         run: |
           set -euo pipefail
           if [ -z "${GCP_SA_KEY:-}" ]; then

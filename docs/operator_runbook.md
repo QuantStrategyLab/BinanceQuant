@@ -7,7 +7,7 @@ This runbook covers the live execution path in `BinanceQuant`.
 Primary entrypoints:
 
 - `main.py` for live hourly execution
-- `.github/workflows/main.yml` for self-hosted scheduled runs
+- `.github/workflows/main.yml` for self-hosted manual/API-triggered runs
 - `run_cycle_replay.py` for fixed-input dry-run replay
 
 Supporting modules with operational impact:
@@ -51,6 +51,13 @@ Runtime output should stay operational:
 - current upstream source and degraded status
 - current execution targets and intents
 - exceptions, circuit breakers, and alert-worthy failures
+
+## Runtime Trigger Model
+
+- `main.yml` is `workflow_dispatch` only.
+- GitHub Actions no longer owns the hourly cadence for runtime execution in this repo.
+- Production cadence should come from one external scheduler, for example VPS cron calling the GitHub Actions dispatch API.
+- Avoid overlapping dispatches from multiple schedulers or from a second manual run while the current runtime job is still in progress.
 
 ## Degraded Mode Ladder
 

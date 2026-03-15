@@ -2,8 +2,6 @@ name: Runtime
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 * * * *'   # every hour at :00 UTC
 
 jobs:
   deploy:

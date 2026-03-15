@@ -195,28 +195,32 @@ Optional:
 
 ## Deploy (self-hosted runner + workflow)
 
-The repo is intended to run on a **self-hosted GitHub Actions runner** (e.g. a VPS). The runtime workflow checks out code, installs dependencies, writes GCP credentials into a runner temp file inside the execution step, removes that file automatically on exit, then runs `main.py`. No manual “download and cron on your PC” flow.
+The repo is intended to run on a **self-hosted GitHub Actions runner** (e.g. a VPS). The runtime workflow checks out code, installs dependencies, writes GCP credentials into a runner temp file inside the execution step, removes that file automatically on exit, then runs `main.py`. The runner is expected to receive `workflow_dispatch` requests from one external scheduler instead of relying on GitHub's built-in hourly scheduler.
 
 ### 1. Self-hosted runner
 
 - In the repo: **Settings → Actions → Runners**, add a new self-hosted runner (Linux recommended).
 - On the machine (e.g. Oracle Cloud VPS): install the runner, register it, and keep it running so it can pick up jobs.
 
-### 2. Workflow and schedule
+### 2. Workflow and runtime trigger
 
 - **`.github/workflows/ci.yml`** is the push/manual validation workflow. It runs on GitHub-hosted runners and is limited to install/compile/test checks.
 - **`.github/workflows/main.yml`** is the runtime workflow. It runs on the self-hosted runner, prepares the local `venv`, writes a temporary GCP credential file inside the execution step, runs `venv/bin/python main.py`, and cleans the temp file via shell trap.
-- **Triggers:** `ci.yml` runs on `push` to `main` and `workflow_dispatch`; `main.yml` runs on `workflow_dispatch` and `schedule`.
-- To run the strategy on a schedule, keep `schedule` in `main.yml`, for example:
+- **Triggers:** `ci.yml` runs on `push` to `main` and `workflow_dispatch`; `main.yml` runs on `workflow_dispatch` only.
+- **Runtime cadence:** GitHub Actions no longer schedules hourly runtime execution for this repo. The expected production model is one external scheduler, such as VPS cron + `curl`, calling the GitHub `workflow_dispatch` API for `main.yml`.
+- Use `Actions -> Runtime -> Run workflow` for one-off manual runs.
+- If you automate dispatch from a VPS, keep a single scheduler of record and avoid firing a new dispatch while the previous runtime job is still running.
 
-```yaml
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: '0 * * * *'   # every hour at :00
+Example API dispatch:
+
+```bash
+curl -L \
+  -X POST \
+  -H "Accept: application/vnd.github+json" \
+  -H "Authorization: Bearer $GITHUB_TOKEN" \
+  https://api.github.com/repos/<owner>/<repo>/actions/workflows/main.yml/dispatches \
+  -d '{"ref":"main"}'
 ```
-
-- Use `Actions -> Runtime -> Run workflow` when you want to trigger a live cycle manually without waiting for the next schedule.
 
 ### 3. Repository secrets
 

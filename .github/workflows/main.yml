@@ -6,6 +6,8 @@ on:
 jobs:
   deploy:
     runs-on: self-hosted
+    permissions:
+      contents: write
     steps:
       - name: 1. Checkout latest code
         uses: actions/checkout@v4
@@ -58,3 +60,44 @@ jobs:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+
+      - name: 4. Capture execution timestamp
+        id: ts
+        run: echo "ts=$(date -u +%Y-%m-%dT%H%M)" >> "$GITHUB_OUTPUT"
+
+      - name: 5. Push execution log to logs branch
+        continue-on-error: true
+        run: |
+          LOGS_BRANCH="logs"
+          TS="${{ steps.ts.outputs.ts }}"
+          MONTH="${TS:0:7}"
+          REPORT_FILE="${GITHUB_WORKSPACE}/reports/execution_report.json"
+
+          if [ ! -f "$REPORT_FILE" ]; then
+            echo "No execution report found, skipping log push."
+            exit 0
+          fi
+
+          TMP_DIR=$(mktemp -d)
+          git clone --no-checkout "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "${TMP_DIR}/logs-repo"
+          cd "${TMP_DIR}/logs-repo"
+
+          if git ls-remote --exit-code --heads origin "${LOGS_BRANCH}" >/dev/null 2>&1; then
+            git fetch origin "${LOGS_BRANCH}:${LOGS_BRANCH}"
+            git checkout "${LOGS_BRANCH}"
+          else
+            git checkout --orphan "${LOGS_BRANCH}"
+            git rm -rf . >/dev/null 2>&1 || true
+            find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+          fi
+
+          mkdir -p "hourly/${MONTH}"
+          cp "$REPORT_FILE" "hourly/${MONTH}/${TS}.json"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "hourly/${MONTH}/${TS}.json"
+          git commit -m "execution: ${TS}"
+          git push origin "HEAD:${LOGS_BRANCH}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

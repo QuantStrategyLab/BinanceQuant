@@ -52,6 +52,11 @@ def build_execution_report(runtime):
             "errors": [],
         },
         "log_lines": [],
+        "total_equity_usdt": None,
+        "trend_equity_usdt": None,
+        "circuit_breaker_triggered": False,
+        "degraded_mode_level": None,
+        "upstream_pool_symbols": [],
     }
 
 

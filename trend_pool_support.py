@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from live_services import get_firestore_client
+from notify_i18n_support import translate as t
 
 
 def infer_base_asset(symbol):
@@ -109,7 +110,7 @@ def validate_trend_pool_payload(
 
     as_of_date = parse_trend_pool_date((payload or {}).get("as_of_date"))
     if as_of_date is None:
-        errors.append("missing or invalid as_of_date")
+        errors.append(t("missing_invalid_as_of_date"))
 
     mode = (payload or {}).get("mode")
     if isinstance(mode, str):
@@ -119,26 +120,32 @@ def validate_trend_pool_payload(
     if not mode:
         if acceptable_modes:
             mode = acceptable_modes[0]
-            warnings.append(f"mode missing; assumed {mode}")
+            warnings.append(t("mode_missing_assumed", mode=mode))
     elif acceptable_modes and mode not in acceptable_modes:
-        errors.append(f"mode {mode} not in acceptable set {acceptable_modes}")
+        errors.append(t("mode_not_acceptable", mode=mode, acceptable_modes=acceptable_modes))
 
     if not symbol_map:
-        errors.append("symbols/symbol_map missing or invalid")
+        errors.append(t("symbols_map_missing_or_invalid"))
     if not symbols:
-        errors.append("symbols list is empty")
+        errors.append(t("symbols_list_empty"))
 
     pool_size_value = (payload or {}).get("pool_size", len(symbols))
     try:
         pool_size = int(pool_size_value)
     except Exception:
         pool_size = len(symbols)
-        errors.append("pool_size missing or invalid")
+        errors.append(t("pool_size_missing_or_invalid"))
 
     if pool_size != len(symbols):
-        errors.append(f"pool_size mismatch: declared {pool_size} vs parsed {len(symbols)}")
+        errors.append(t("pool_size_mismatch", declared=pool_size, parsed=len(symbols)))
     if expected_pool_size and symbols and pool_size != int(expected_pool_size):
-        errors.append(f"pool_size {pool_size} does not match expected {int(expected_pool_size)}")
+        errors.append(
+            t(
+                "pool_size_expected_mismatch",
+                pool_size=pool_size,
+                expected_pool_size=int(expected_pool_size),
+            )
+        )
 
     age_days = None
     is_fresh = False
@@ -146,9 +153,15 @@ def validate_trend_pool_payload(
         age_days = (now_utc.date() - as_of_date).days
         is_fresh = age_days <= int(max_age_days)
         if age_days < 0:
-            errors.append(f"as_of_date {as_of_date.isoformat()} is in the future")
+            errors.append(t("as_of_date_in_future", as_of_date=as_of_date.isoformat()))
         elif enforce_freshness and age_days > int(max_age_days):
-            errors.append(f"payload stale by {age_days} days (max {int(max_age_days)})")
+            errors.append(
+                t(
+                    "payload_stale_by_days",
+                    age_days=age_days,
+                    max_age_days=int(max_age_days),
+                )
+            )
 
     version = (payload or {}).get("version")
     if isinstance(version, str):
@@ -157,7 +170,7 @@ def validate_trend_pool_payload(
         version = ""
     if not version and as_of_date is not None and mode:
         version = f"{as_of_date.isoformat()}-{mode}"
-        warnings.append("version missing; synthesized from as_of_date and mode")
+        warnings.append(t("version_missing_synthesized"))
 
     source_project = (payload or {}).get("source_project")
     if isinstance(source_project, str):
@@ -166,7 +179,7 @@ def validate_trend_pool_payload(
         source_project = ""
     if not source_project:
         source_project = "unknown"
-        warnings.append("source_project missing; marked as unknown")
+        warnings.append(t("source_project_missing_unknown"))
 
     normalized_payload = {
         "as_of_date": as_of_date.isoformat() if as_of_date is not None else "",
@@ -234,7 +247,7 @@ def load_trend_pool_from_firestore(
         if not payload.exists:
             return {
                 "ok": False,
-                "errors": [f"missing Firestore document {collection}/{document}"],
+                "errors": [t("missing_firestore_document", collection=collection, document=document)],
                 "warnings": [],
                 "source_label": source_label,
             }
@@ -251,7 +264,7 @@ def load_trend_pool_from_firestore(
     except Exception as exc:
         return {
             "ok": False,
-            "errors": [f"Firestore read failed: {exc}"],
+            "errors": [t("firestore_read_failed", error=exc)],
             "warnings": [],
             "source_label": source_label,
         }
@@ -264,7 +277,7 @@ def load_trend_pool_from_file(path, *, now_utc, settings):
         if not pool_path.exists():
             return {
                 "ok": False,
-                "errors": [f"pool file not found: {pool_path}"],
+                "errors": [t("pool_file_not_found", pool_path=pool_path)],
                 "warnings": [],
                 "source_label": source_label,
             }
@@ -281,7 +294,7 @@ def load_trend_pool_from_file(path, *, now_utc, settings):
     except Exception as exc:
         return {
             "ok": False,
-            "errors": [f"pool file read failed: {exc}"],
+            "errors": [t("pool_file_read_failed", error=exc)],
             "warnings": [],
             "source_label": source_label,
         }

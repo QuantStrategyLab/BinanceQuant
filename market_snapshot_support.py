@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Callable, Mapping
 
+from notify_i18n_support import translate as t
+
 
 def capture_market_snapshot(
     runtime,
@@ -37,7 +39,7 @@ def capture_market_snapshot(
         )
         try:
             if not ensure_asset_available_fn(runtime, report, "USDT", buy_bnb_amount, log_buffer):
-                raise RuntimeError("USDT spot buffer unavailable for BNB top-up")
+                raise RuntimeError(t("usdt_spot_buffer_unavailable_for_bnb_top_up"))
             runtime_call_client_fn(
                 runtime,
                 report,
@@ -47,9 +49,13 @@ def capture_market_snapshot(
             )
             u_total -= buy_bnb_amount
             bnb_total += (buy_bnb_amount * 0.995) / bnb_price
-            append_log_fn(log_buffer, "🔧 BNB top-up completed")
+            append_log_fn(log_buffer, t("bnb_top_up_completed"))
         except Exception as exc:
-            runtime_notify_fn(runtime, report, f"⚠️ BNB top-up failed: {exc}")
+            runtime_notify_fn(
+                runtime,
+                report,
+                f"{t('bnb_top_up_failed')}\n{t('error_label')}: {exc}",
+            )
 
     prices = {}
     balances = {}
@@ -63,7 +69,7 @@ def capture_market_snapshot(
 
     btc_snapshot = resolve_btc_snapshot_fn(runtime, btc_price, log_buffer)
     if btc_snapshot is None:
-        raise RuntimeError("BTC indicators insufficient for rotation and DCA")
+        raise RuntimeError(t("btc_indicators_insufficient"))
 
     return {
         "u_total": u_total,

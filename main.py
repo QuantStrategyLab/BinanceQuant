@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from binance.client import Client
 import traceback
+from notify_i18n_support import translate as t
 from degraded_mode_support import (
     format_trend_pool_source_logs as dm_format_trend_pool_source_logs,
     load_trend_universe_from_live_pool as dm_load_trend_universe_from_live_pool,
@@ -93,105 +94,7 @@ from trend_pool_support import (
     validate_trend_pool_payload as tp_validate_trend_pool_payload,
 )
 
-NOTIFY_LANG = os.getenv("NOTIFY_LANG", "en")
 SEPARATOR = "━━━━━━━━━━━━━━━━━━"
-
-I18N = {
-    "zh": {
-        "heartbeat_title": "💓 【策略心跳】",
-        "time_utc": "🕐 UTC 时间",
-        "total_equity": "💰 总净值",
-        "trend_equity": "📈 趋势层持仓",
-        "btc_price": "₿ BTC 价格",
-        "ahr999": "AHR999",
-        "zscore": "Z-Score",
-        "zscore_threshold": "阈值",
-        "btc_target": "🎯 BTC 目标配比",
-        "btc_gate": "🚦 BTC 闸门",
-        "gate_on": "开启",
-        "gate_off": "关闭",
-        "manual_hint": "💡 建议",
-        "trend_buy": "✅ 【趋势买入】",
-        "trend_buy_failed": "⚠️ 【趋势买入失败】",
-        "trend_buy_skipped": "⚠️ 【趋势买入跳过】",
-        "trend_sell": "📉 【趋势卖出】",
-        "trend_sell_failed": "⚠️ 【趋势卖出失败】",
-        "trend_sell_skipped": "⚠️ 【趋势卖出跳过】",
-        "btc_dca_buy": "🛡️ 【BTC 定投买入】",
-        "btc_dca_buy_failed": "⚠️ 【BTC 定投买入失败】",
-        "btc_dca_buy_skipped": "⚠️ 【BTC 定投买入跳过】",
-        "btc_dca_trim": "💰 【BTC 止盈卖出】",
-        "btc_dca_trim_failed": "⚠️ 【BTC 止盈卖出失败】",
-        "btc_dca_trim_skipped": "⚠️ 【BTC 止盈卖出跳过】",
-        "circuit_breaker": "🚫 【熔断触发】",
-        "circuit_breaker_sell_failed": "❌ 【熔断卖出失败】",
-        "circuit_breaker_sell_skipped": "⚠️ 【熔断卖出跳过】",
-        "system_crash": "❌ 【系统崩溃】",
-        "redeem_failed": "⚠️ 【赎回失败】",
-        "api_error": "❌ 【API 连接失败】",
-        "price_label": "价格",
-        "reason_label": "原因",
-        "budget_label": "预算",
-        "weight_label": "轮动权重",
-        "rel_score_label": "相对BTC得分",
-        "quantity_label": "数量",
-        "target_alloc_label": "目标配比",
-        "ratio_label": "比例",
-        "error_label": "错误",
-        "qty_zero_msg": "格式化数量为 0，未执行",
-        "circuit_msg": "趋势层日内收益触发熔断 ({pnl})；趋势仓位已清仓，BTC 定投层保持运作。",
-    },
-    "en": {
-        "heartbeat_title": "💓 【Strategy Heartbeat】",
-        "time_utc": "🕐 UTC Time",
-        "total_equity": "💰 Total Equity",
-        "trend_equity": "📈 Trend Holdings",
-        "btc_price": "₿ BTC Price",
-        "ahr999": "AHR999",
-        "zscore": "Z-Score",
-        "zscore_threshold": "Threshold",
-        "btc_target": "🎯 BTC Target Allocation",
-        "btc_gate": "🚦 BTC Gate",
-        "gate_on": "ON",
-        "gate_off": "OFF",
-        "manual_hint": "💡 Note",
-        "trend_buy": "✅ 【Trend Buy】",
-        "trend_buy_failed": "⚠️ 【Trend Buy Failed】",
-        "trend_buy_skipped": "⚠️ 【Trend Buy Skipped】",
-        "trend_sell": "📉 【Trend Sell】",
-        "trend_sell_failed": "⚠️ 【Trend Sell Failed】",
-        "trend_sell_skipped": "⚠️ 【Trend Sell Skipped】",
-        "btc_dca_buy": "🛡️ 【BTC DCA Buy】",
-        "btc_dca_buy_failed": "⚠️ 【BTC DCA Buy Failed】",
-        "btc_dca_buy_skipped": "⚠️ 【BTC DCA Buy Skipped】",
-        "btc_dca_trim": "💰 【BTC DCA Trim】",
-        "btc_dca_trim_failed": "⚠️ 【BTC DCA Trim Failed】",
-        "btc_dca_trim_skipped": "⚠️ 【BTC DCA Trim Skipped】",
-        "circuit_breaker": "🚫 【Circuit Breaker】",
-        "circuit_breaker_sell_failed": "❌ 【Circuit Breaker Sell Failed】",
-        "circuit_breaker_sell_skipped": "⚠️ 【Circuit Breaker Sell Skipped】",
-        "system_crash": "❌ 【System Crash】",
-        "redeem_failed": "⚠️ 【Redeem Failed】",
-        "api_error": "❌ 【API Connection Failed】",
-        "price_label": "Price",
-        "reason_label": "Reason",
-        "budget_label": "Budget",
-        "weight_label": "Rotation Weight",
-        "rel_score_label": "Relative BTC Score",
-        "quantity_label": "Quantity",
-        "target_alloc_label": "Target Allocation",
-        "ratio_label": "Ratio",
-        "error_label": "Error",
-        "qty_zero_msg": "Formatted quantity is 0; not executed",
-        "circuit_msg": "Trend sleeve daily PnL breached ({pnl}); trend positions cleared, BTC DCA remains active.",
-    },
-}
-
-
-def t(key, **kwargs):
-    lang = NOTIFY_LANG if NOTIFY_LANG in I18N else "en"
-    template = I18N[lang].get(key, key)
-    return template.format(**kwargs) if kwargs else template
 
 
 STATIC_TREND_UNIVERSE = {
@@ -572,14 +475,14 @@ def build_btc_manual_hint(btc_snapshot):
     sell_trigger = btc_snapshot["sell_trigger"]
 
     if ahr < 0.45:
-        return "AHR999 is deeply undervalued; consider reserving extra discretionary buy budget."
+        return t("manual_hint_deep_value")
     if ahr < 0.8:
-        return "AHR999 is low; if extra cash is available, consider scaling discretionary buys."
+        return t("manual_hint_low_value")
     if zscore >= sell_trigger:
-        return "Z-Score is inside the profit-taking zone; consider extra discretionary trimming if exposure is heavy."
+        return t("manual_hint_profit_taking")
     if zscore >= sell_trigger * 0.9:
-        return "Z-Score is approaching the profit-taking threshold; stay alert to elevated risk."
-    return "BTC valuation is neutral; follow the system cadence."
+        return t("manual_hint_near_profit_taking")
+    return t("manual_hint_neutral")
 
 
 def maybe_send_periodic_btc_status_report(
@@ -699,12 +602,12 @@ def fetch_btc_market_snapshot(client, btc_price, lookback_days=700, log_buffer=N
         klines = client.get_historical_klines("BTCUSDT", Client.KLINE_INTERVAL_1DAY, f"{lookback_days} days ago UTC")
     except Exception as e:
         if log_buffer is not None:
-            log_buffer.append(f"⚠️ BTC daily fetch failed: {e}")
+            log_buffer.append(t("btc_daily_fetch_failed", error=e))
         return None
 
     if not klines:
         if log_buffer is not None:
-            log_buffer.append("⚠️ BTC daily data empty.")
+            log_buffer.append(t("btc_daily_data_empty"))
         return None
 
     df = pd.DataFrame(klines).iloc[:, :6]
@@ -727,7 +630,7 @@ def fetch_btc_market_snapshot(client, btc_price, lookback_days=700, log_buffer=N
     if valid.empty:
         if log_buffer is not None:
             last_time = df["time"].iloc[-1] if not df.empty else None
-            log_buffer.append(f"⚠️ BTC data insufficient for MA200/Z-Score. len={len(df)}, last_time={last_time}")
+            log_buffer.append(t("btc_data_insufficient", length=len(df), last_time=last_time))
         return None
 
     latest = valid.iloc[-1]
@@ -882,7 +785,7 @@ def resolve_runtime_trend_pool(runtime, raw_state):
             source_kind="fresh_upstream",
             degraded=False,
             now_utc=runtime.now_utc,
-            messages=["Loaded injected trend pool payload from runtime."],
+            messages=[t("trend_pool_loaded_runtime_payload")],
         )
         return resolution["symbol_map"], resolution
     raise ValueError(
@@ -935,7 +838,10 @@ def ensure_asset_available_runtime(runtime, report, asset, required_amount, log_
                     payload={"productId": product_id, "amount": redeem_amt},
                     effect_type="earn_redeem",
                 )
-                append_log(log_buffer, f"🔄 [Execution] spot {asset} short, redeeming from earn: {redeem_amt}")
+                append_log(
+                    log_buffer,
+                    t("execution_spot_short_redeeming_from_earn", asset=asset, amount=redeem_amt),
+                )
                 if not runtime.dry_run:
                     time.sleep(3)
                 return True
@@ -978,7 +884,7 @@ def manage_usdt_earn_buffer_runtime(runtime, report, target_buffer, log_buffer, 
                     payload={"productId": product_id, "amount": excess},
                     effect_type="earn_subscribe",
                 )
-                append_log(log_buffer, f"📥 [Cash manager] excess spot balance subscribed to earn: ${excess:.2f}")
+                append_log(log_buffer, t("cash_manager_subscribed_to_earn", amount=excess))
         elif spot_free < target_buffer - 5.0:
             shortfall = round(target_buffer - spot_free, 4)
             earn_positions = runtime.client.get_simple_earn_flexible_product_position(asset=asset)
@@ -1002,9 +908,9 @@ def manage_usdt_earn_buffer_runtime(runtime, report, target_buffer, log_buffer, 
                         payload={"productId": product_id, "amount": redeem_amt},
                         effect_type="earn_redeem",
                     )
-                    append_log(log_buffer, f"📤 [Cash manager] spot buffer low, redeeming to spot: ${redeem_amt:.2f}")
+                    append_log(log_buffer, t("cash_manager_redeeming_to_spot", amount=redeem_amt))
     except Exception as exc:
-        append_log(log_buffer, f"⚠️ USDT earn buffer maintenance failed: {exc}")
+        append_log(log_buffer, t("usdt_earn_buffer_maintenance_failed", error=exc))
 
 
 def get_tradable_qty(symbol, total_qty, prices, min_bnb_value):
@@ -1170,20 +1076,39 @@ def _compute_daily_pnls(state, total_equity, trend_equity):
 
 
 def _append_portfolio_report(log_buffer, allocation, fuel_val, daily_pnl, trend_daily_pnl, btc_snapshot):
-    append_log(log_buffer, "━━━━━━━━━ 📦 Portfolio snapshot ━━━━━━━━━")
-    append_log(log_buffer, f"💰 Total equity: ${allocation['total_equity']:.2f} (daily portfolio: {daily_pnl:.2%})")
+    append_log(log_buffer, t("portfolio_snapshot_title"))
     append_log(
         log_buffer,
-        f"🪙 BTC core target: {allocation['btc_target_ratio']:.1%} | current ${allocation['dca_val']:.2f} | available ${allocation['dca_usdt_pool']:.2f}",
+        t("portfolio_total_equity_line", total_equity=allocation["total_equity"], daily_pnl=daily_pnl),
     )
     append_log(
         log_buffer,
-        f"🔥 Trend sleeve target: {allocation['trend_target_ratio']:.1%} | current ${allocation['trend_val']:.2f} | available ${allocation['trend_usdt_pool']:.2f} | trend sleeve daily: {trend_daily_pnl:.2%}",
+        t(
+            "portfolio_btc_core_line",
+            target_ratio=allocation["btc_target_ratio"],
+            current_value=allocation["dca_val"],
+            available_value=allocation["dca_usdt_pool"],
+        ),
     )
-    append_log(log_buffer, f"⛽ BNB fuel reserve: ${fuel_val:.2f}")
     append_log(
         log_buffer,
-        f"🚦 BTC gate: {'ON' if btc_snapshot['regime_on'] else 'OFF'} | Ahr999={btc_snapshot['ahr999']:.3f} | Z-Score={btc_snapshot['zscore']:.2f}",
+        t(
+            "portfolio_trend_sleeve_line",
+            target_ratio=allocation["trend_target_ratio"],
+            current_value=allocation["trend_val"],
+            available_value=allocation["trend_usdt_pool"],
+            trend_daily_pnl=trend_daily_pnl,
+        ),
+    )
+    append_log(log_buffer, t("portfolio_bnb_fuel_reserve_line", fuel_val=fuel_val))
+    append_log(
+        log_buffer,
+        t(
+            "portfolio_btc_gate_line",
+            gate_text=t("gate_on") if btc_snapshot["regime_on"] else t("gate_off"),
+            ahr=btc_snapshot["ahr999"],
+            zscore=btc_snapshot["zscore"],
+        ),
     )
     append_log(log_buffer, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
@@ -1223,7 +1148,9 @@ def _run_daily_circuit_breaker(
                     f"{t('qty_zero_msg')}")
                 continue
             if not ensure_asset_available_runtime(runtime, report, config["base_asset"], qty, log_buffer):
-                raise RuntimeError(f"{config['base_asset']} unavailable for circuit-breaker sell")
+                raise RuntimeError(
+                    t("asset_unavailable_for_circuit_breaker_sell", asset=config["base_asset"])
+                )
             runtime_call_client(
                 runtime,
                 report,
@@ -1252,18 +1179,18 @@ def _run_daily_circuit_breaker(
 
 
 def _append_rotation_summary(log_buffer, official_trend_pool, active_trend_pool, selected_candidates):
-    official_pool_text = ", ".join(official_trend_pool) if official_trend_pool else "no upstream pool available"
-    execution_pool_text = ", ".join(active_trend_pool) if active_trend_pool else "no execution pool available"
+    official_pool_text = ", ".join(official_trend_pool) if official_trend_pool else t("rotation_no_upstream_pool")
+    execution_pool_text = ", ".join(active_trend_pool) if active_trend_pool else t("rotation_no_execution_pool")
     execution_pool_count = len(active_trend_pool)
     selected_text = (
         ", ".join(f"{symbol}({meta['weight']:.0%},RS:{meta['relative_score']:.2f})" for symbol, meta in selected_candidates.items())
         if selected_candidates
-        else "no candidates; stay defensive"
+        else t("rotation_no_candidates")
     )
-    append_log(log_buffer, f"🗓️ Upstream official monthly pool: {official_pool_text}")
-    append_log(log_buffer, f"🧭 Current monthly execution pool: {execution_pool_text}")
-    append_log(log_buffer, f"📌 Current monthly execution pool size: {execution_pool_count}")
-    append_log(log_buffer, f"🎯 Current execution targets: {selected_text}")
+    append_log(log_buffer, t("rotation_upstream_official_monthly_pool", pool_text=official_pool_text))
+    append_log(log_buffer, t("rotation_current_execution_pool", pool_text=execution_pool_text))
+    append_log(log_buffer, t("rotation_current_execution_pool_size", pool_size=execution_pool_count))
+    append_log(log_buffer, t("rotation_current_execution_targets", target_text=selected_text))
 
 
 def _get_trend_sell_reason(state, symbol, curr_price, indicators, selected_candidates, atr_multiplier):
@@ -1274,18 +1201,18 @@ def _get_trend_sell_reason(state, symbol, curr_price, indicators, selected_candi
     sell_reason = ""
     stop_price = None
     if not indicators:
-        sell_reason = "Missing indicators"
+        sell_reason = t("trend_sell_reason_missing_indicators")
     else:
         st["highest_price"] = max(st["highest_price"], curr_price)
         set_symbol_trade_state(state, symbol, st)
         stop_price = st["highest_price"] - (atr_multiplier * indicators["atr14"])
 
     if symbol not in selected_candidates and not sell_reason:
-        sell_reason = "Rotated out of candidates"
+        sell_reason = t("trend_sell_reason_rotated_out")
     elif indicators and curr_price < indicators["sma60"]:
-        sell_reason = "Below SMA60"
+        sell_reason = t("trend_sell_reason_below_sma60")
     elif stop_price is not None and curr_price < stop_price:
-        sell_reason = f"ATR trailing stop (${stop_price:.2f})"
+        sell_reason = t("trend_sell_reason_atr_stop", stop_price=stop_price)
     return sell_reason
 
 
@@ -1317,7 +1244,7 @@ def _execute_trend_sells(
             continue
 
         if should_skip_duplicate_trend_action(state, symbol, "sell", today_id_str):
-            append_log(log_buffer, f"⏸️ Skipping duplicate sell for {symbol}; a same-day sell is already recorded.")
+            append_log(log_buffer, t("duplicate_sell_skipped", symbol=symbol))
             continue
 
         qty = format_qty(runtime.client, symbol, balances[symbol])
@@ -1339,7 +1266,7 @@ def _execute_trend_sells(
                     f"{t('qty_zero_msg')}")
                 continue
             if not ensure_asset_available_runtime(runtime, report, config["base_asset"], qty, log_buffer):
-                raise RuntimeError(f"{config['base_asset']} unavailable for trend sell")
+                raise RuntimeError(t("asset_unavailable_for_trend_sell", asset=config["base_asset"]))
             runtime_call_client(
                 runtime,
                 report,
@@ -1429,7 +1356,7 @@ def _execute_trend_buys(
             continue
 
         if should_skip_duplicate_trend_action(state, symbol, "buy", today_id_str):
-            append_log(log_buffer, f"⏸️ Skipping duplicate buy for {symbol}; a same-day buy is already recorded.")
+            append_log(log_buffer, t("duplicate_buy_skipped", symbol=symbol))
             continue
 
         qty = format_qty(runtime.client, symbol, buy_u * 0.985 / curr_price)
@@ -1453,7 +1380,7 @@ def _execute_trend_buys(
                     f"{t('qty_zero_msg')}")
                 continue
             if not ensure_asset_available_runtime(runtime, report, "USDT", usdt_cost, log_buffer):
-                raise RuntimeError("USDT unavailable for trend buy")
+                raise RuntimeError(t("usdt_unavailable_for_trend_buy"))
             runtime_call_client(
                 runtime,
                 report,
@@ -1502,8 +1429,17 @@ def _append_trend_symbol_status(log_buffer, runtime_trend_universe, prices, tren
                 + 0.2 * (indicators["roc120"] - btc_snapshot["btc_roc120"])
             ) / indicators["vol20"]
             abs_momentum = 0.5 * indicators["roc20"] + 0.3 * indicators["roc60"] + 0.2 * indicators["roc120"]
-            score_text = f" | rel BTC: {rel_score:.2f} | momentum: {abs_momentum:.2%}"
-        append_log(log_buffer, f" └ {symbol}: {'📈holding' if st['is_holding'] else '💤flat'} | price: ${curr_price:.4f}{score_text}")
+            score_text = t("trend_symbol_score_text", rel_score=rel_score, abs_momentum=abs_momentum)
+        append_log(
+            log_buffer,
+            t(
+                "trend_symbol_status_line",
+                symbol=symbol,
+                status=t("status_holding") if st["is_holding"] else t("status_flat"),
+                price=curr_price,
+                score_text=score_text,
+            ),
+        )
 
 
 def _execute_trend_rotation(
@@ -1610,7 +1546,7 @@ def _execute_btc_dca_cycle(
     ahr = btc_snapshot["ahr999"]
     zscore = btc_snapshot["zscore"]
     sell_trigger = btc_snapshot["sell_trigger"]
-    append_log(log_buffer, f"🧭 BTC accumulation radar: Ahr999={ahr:.3f} | Z-Score={zscore:.2f} (threshold:{sell_trigger:.2f})")
+    append_log(log_buffer, t("btc_accumulation_radar_line", ahr=ahr, zscore=zscore, sell_trigger=sell_trigger))
 
     base_order = get_dynamic_btc_base_order(total_equity)
     multiplier = 0
@@ -1641,7 +1577,7 @@ def _execute_btc_dca_cycle(
                     f"{t('qty_zero_msg')}")
             else:
                 if not ensure_asset_available_runtime(runtime, report, "USDT", buy_cost, log_buffer):
-                    raise RuntimeError("USDT unavailable for BTC DCA buy")
+                    raise RuntimeError(t("usdt_unavailable_for_btc_dca_buy"))
                 runtime_call_client(
                     runtime,
                     report,
@@ -1690,7 +1626,7 @@ def _execute_btc_dca_cycle(
                     f"{t('qty_zero_msg')}")
             else:
                 if not ensure_asset_available_runtime(runtime, report, "BTC", qty, log_buffer):
-                    raise RuntimeError("BTC unavailable for DCA sell")
+                    raise RuntimeError(t("btc_unavailable_for_dca_sell"))
                 runtime_call_client(
                     runtime,
                     report,
@@ -1780,7 +1716,7 @@ def execute_cycle(runtime):
         _append_portfolio_report(log_buffer, allocation, fuel_val, daily_pnl, trend_daily_pnl, btc_snapshot)
 
         if state.get("is_circuit_broken"):
-            log_buffer.insert(0, f"🔒 Circuit breaker latched. NAV: ${total_equity:.2f}")
+            log_buffer.insert(0, t("circuit_breaker_latched_line", total_equity=total_equity))
             return report
 
         if _run_daily_circuit_breaker(

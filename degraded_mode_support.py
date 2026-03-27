@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from notify_i18n_support import translate as t
 from trend_pool_support import (
     build_static_trend_pool_resolution,
     build_trend_pool_resolution,
@@ -50,7 +51,7 @@ def resolve_trend_pool_source(
             source_kind="fresh_upstream",
             degraded=False,
             now_utc=now_utc,
-            messages=[f"Loaded fresh upstream trend pool from {firestore_result['source_label']}"],
+            messages=[t("trend_pool_loaded_fresh_upstream", source_label=firestore_result["source_label"])],
         )
     messages.extend(firestore_result.get("errors", []))
     messages.extend(firestore_result.get("warnings", []))
@@ -67,7 +68,7 @@ def resolve_trend_pool_source(
             source_kind="last_known_good",
             degraded=True,
             now_utc=now_utc,
-            messages=messages + ["Using last known good upstream trend pool after fresh upstream validation failed."],
+            messages=messages + [t("trend_pool_using_last_known_good")],
         )
     messages.extend(last_good_result.get("errors", []))
 
@@ -92,14 +93,14 @@ def resolve_trend_pool_source(
                 source_kind="local_file",
                 degraded=True,
                 now_utc=now_utc,
-                messages=messages + [f"Using validated local trend pool fallback from {pool_path}"],
+                messages=messages + [t("trend_pool_using_local_file", path=pool_path)],
             )
         messages.extend(file_result.get("errors", []))
         messages.extend(file_result.get("warnings", []))
 
     return build_static_trend_pool_resolution(
         now_utc=now_utc,
-        messages=messages + ["Falling back to built-in static trend universe as last resort."],
+        messages=messages + [t("trend_pool_fallback_static")],
         static_trend_universe=static_trend_universe,
     )
 
@@ -159,15 +160,16 @@ def format_trend_pool_source_logs(
     allow_new_trend_entries: bool,
 ) -> list[str]:
     log_lines = [
-        (
-            f"📡 Trend pool source: {trend_pool_resolution['source_kind']} | "
-            f"mode={trend_pool_resolution['mode'] or 'unknown'} | "
-            f"version={trend_pool_resolution['version'] or 'unknown'} | "
-            f"as_of={trend_pool_resolution['as_of_date'] or 'n/a'} | "
-            f"project={trend_pool_resolution['source_project']}"
+        t(
+            "trend_pool_source_line",
+            source_kind=trend_pool_resolution["source_kind"],
+            mode=trend_pool_resolution["mode"] or "unknown",
+            version=trend_pool_resolution["version"] or "unknown",
+            as_of_date=trend_pool_resolution["as_of_date"] or "n/a",
+            source_project=trend_pool_resolution["source_project"],
         )
     ]
     log_lines.extend(f"   · {message}" for message in trend_pool_resolution.get("messages", [])[-3:])
     if trend_pool_resolution["degraded"] and not allow_new_trend_entries:
-        log_lines.append("⚠️ Upstream trend pool is degraded; pausing new trend buys and retaining the current monthly execution pool.")
+        log_lines.append(t("trend_pool_degraded_buy_pause"))
     return log_lines

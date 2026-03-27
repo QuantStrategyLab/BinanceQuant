@@ -207,11 +207,11 @@
 | `TREND_POOL_ACCEPTABLE_MODES` | 可接受的上游 mode，默认 `core_major` |
 | `TREND_POOL_EXPECTED_SIZE` | 上游 live pool 期望数量，默认 `5` |
 | `TREND_POOL_ALLOW_NEW_ENTRIES_ON_DEGRADED` | degraded mode 下是否允许趋势新开仓，默认 `false` |
-| `NOTIFY_LANG` | 通知语言: `en`（英文，默认）或 `zh`（中文） |
+| `NOTIFY_LANG` | 日志和通知语言: `en`（英文，默认）或 `zh`（中文） |
 
 ## 通知格式
 
-Telegram 通知采用结构化 Emoji 排版，支持中英文切换。设置 `NOTIFY_LANG=zh` 切换为中文。
+运行日志和 Telegram 通知共用同一个语言开关。设置 `NOTIFY_LANG=zh` 切换为中文，不设置则默认英文。
 
 **策略心跳:**
 ```

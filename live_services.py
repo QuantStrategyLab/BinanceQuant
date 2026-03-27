@@ -1,15 +1,10 @@
 import os
 import requests
 
+from notify_i18n_support import build_telegram_message, translate as t
+
 
 _FIRESTORE_CLIENT = None
-
-NOTIFY_LANG = os.getenv("NOTIFY_LANG", "en")
-
-_TG_PREFIX = {
-    "zh": "🤖 加密量化助手",
-    "en": "🤖 Crypto Quant Bot",
-}
 
 
 def get_firestore_client():
@@ -33,7 +28,7 @@ def load_trade_state(*, normalize_fn, default_state_factory, normalize=True, col
             return normalize_fn(payload) if normalize else payload
         return default_state_factory() if normalize else {}
     except Exception as exc:
-        print(f"Firestore get state failed: {exc}")
+        print(t("firestore_get_state_failed", error=exc))
         return None
 
 
@@ -42,15 +37,14 @@ def save_trade_state(data, *, normalize_fn, collection="strategy", document="MUL
         persisted_state = normalize_fn(data)
         get_state_doc_ref(collection=collection, document=document).set(persisted_state)
     except Exception as exc:
-        print(f"Firestore write failed: {exc}")
+        print(t("firestore_write_failed", error=exc))
 
 
 def send_tg_msg(token, chat_id, text):
     if not token or not chat_id:
         return
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    prefix = _TG_PREFIX.get(NOTIFY_LANG, _TG_PREFIX["en"])
     try:
-        requests.post(url, data={"chat_id": chat_id, "text": f"{prefix}:\n{text}"}, timeout=10)
+        requests.post(url, data={"chat_id": chat_id, "text": build_telegram_message(text)}, timeout=10)
     except Exception:
-        print("Telegram send failed")
+        print(t("telegram_send_failed"))

@@ -224,11 +224,11 @@ Optional:
 | `TREND_POOL_ACCEPTABLE_MODES` | Comma-separated allowed upstream modes (default `core_major`) |
 | `TREND_POOL_EXPECTED_SIZE` | Expected upstream live-pool size for contract checks (default `5`) |
 | `TREND_POOL_ALLOW_NEW_ENTRIES_ON_DEGRADED` | Allow trend buys when running on last-known-good or fallback pool sources (default `false`) |
-| `NOTIFY_LANG` | Notification language: `en` (English, default) or `zh` (Chinese) |
+| `NOTIFY_LANG` | Log and notification language: `en` (English, default) or `zh` (Chinese) |
 
 ## Notification Format
 
-Telegram notifications use structured emoji formatting with full i18n support. Set `NOTIFY_LANG=zh` for Chinese or leave default for English.
+Runtime logs and Telegram notifications use the same language switch. Set `NOTIFY_LANG=zh` for Chinese or leave default for English.
 
 **Strategy heartbeat:**
 ```

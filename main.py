@@ -6,12 +6,12 @@ helpers, and live service adapters live in dedicated modules.
 """
 
 import os
-import json
 import time
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 import traceback
+from entrypoints.cli import run_cli_entrypoint
 from notify_i18n_support import translate as t
 from degraded_mode_support import (
     format_trend_pool_source_logs as dm_format_trend_pool_source_logs,
@@ -1725,16 +1725,12 @@ def execute_cycle(runtime):
 
 
 def main():
-    runtime = build_live_runtime()
-    report = execute_cycle(runtime)
-    print("\n".join(report.get("log_lines", [])))
-
-    os.makedirs("reports", exist_ok=True)
-    with open("reports/execution_report.json", "w") as f:
-        json.dump(report, f, indent=2, default=str)
-
-    if report.get("status") != "ok":
-        sys.exit(1)
+    return run_cli_entrypoint(
+        runtime_builder=build_live_runtime,
+        execute_cycle=execute_cycle,
+        output_printer=print,
+        exit_fn=sys.exit,
+    )
 
 
 if __name__ == "__main__":

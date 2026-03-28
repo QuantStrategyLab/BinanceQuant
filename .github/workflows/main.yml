@@ -10,7 +10,7 @@ jobs:
       contents: write
     steps:
       - name: 1. Checkout latest code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 2. Prepare or update dependency environment
         run: |

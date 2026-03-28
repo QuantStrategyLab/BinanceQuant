@@ -54,6 +54,14 @@ from runtime_config_support import (
     get_env_int as rc_get_env_int,
     load_cycle_execution_settings as rc_load_cycle_execution_settings,
 )
+from reporting.status_reports import (
+    append_portfolio_report as report_append_portfolio_report,
+    append_rotation_summary as report_append_rotation_summary,
+    append_trend_symbol_status as report_append_trend_symbol_status,
+    build_btc_manual_hint as report_build_btc_manual_hint,
+    get_periodic_report_bucket as report_get_periodic_report_bucket,
+    maybe_send_periodic_btc_status_report as report_maybe_send_periodic_btc_status_report,
+)
 from strategy_core import (
     DEFAULT_POOL_SCORE_WEIGHTS,
     allocate_trend_buy_budget as shared_allocate_trend_buy_budget,
@@ -468,26 +476,11 @@ def get_dynamic_btc_base_order(total_equity):
 
 
 def get_periodic_report_bucket(now_utc, interval_hours):
-    safe_interval = max(1, min(24, int(interval_hours)))
-    if now_utc.hour % safe_interval != 0:
-        return ""
-    return now_utc.strftime("%Y%m%d") + f"{now_utc.hour:02d}"
+    return report_get_periodic_report_bucket(now_utc, interval_hours)
 
 
 def build_btc_manual_hint(btc_snapshot):
-    ahr = btc_snapshot["ahr999"]
-    zscore = btc_snapshot["zscore"]
-    sell_trigger = btc_snapshot["sell_trigger"]
-
-    if ahr < 0.45:
-        return t("manual_hint_deep_value")
-    if ahr < 0.8:
-        return t("manual_hint_low_value")
-    if zscore >= sell_trigger:
-        return t("manual_hint_profit_taking")
-    if zscore >= sell_trigger * 0.9:
-        return t("manual_hint_near_profit_taking")
-    return t("manual_hint_neutral")
+    return report_build_btc_manual_hint(btc_snapshot, translate_fn=t)
 
 
 def maybe_send_periodic_btc_status_report(
@@ -504,31 +497,23 @@ def maybe_send_periodic_btc_status_report(
     btc_target_ratio,
     notifier_fn=None,
 ):
-    report_bucket = get_periodic_report_bucket(now_utc, interval_hours)
-    if not report_bucket or state.get("last_btc_status_report_bucket") == report_bucket:
-        return
-
-    gate_text = t("gate_on") if btc_snapshot["regime_on"] else t("gate_off")
-    text = (
-        f"{t('heartbeat_title')}\n"
-        f"{t('time_utc')}: {now_utc.strftime('%Y-%m-%d %H:%M')}\n"
-        f"{SEPARATOR}\n"
-        f"{t('total_equity')}: ${total_equity:.2f}\n"
-        f"{t('trend_equity')}: ${trend_holdings_equity:.2f} ({trend_daily_pnl:.2%})\n"
-        f"{t('btc_price')}: ${btc_price:.2f}\n"
-        f"{SEPARATOR}\n"
-        f"{t('ahr999')}: {btc_snapshot['ahr999']:.3f}\n"
-        f"{t('zscore')}: {btc_snapshot['zscore']:.2f} / {t('zscore_threshold')} {btc_snapshot['sell_trigger']:.2f}\n"
-        f"{t('btc_target')}: {btc_target_ratio:.1%}\n"
-        f"{t('btc_gate')}: {gate_text}\n"
-        f"{SEPARATOR}\n"
-        f"{t('manual_hint')}: {build_btc_manual_hint(btc_snapshot)}"
+    return report_maybe_send_periodic_btc_status_report(
+        state,
+        tg_token,
+        tg_chat_id,
+        now_utc,
+        interval_hours,
+        total_equity,
+        trend_holdings_equity,
+        trend_daily_pnl,
+        btc_price,
+        btc_snapshot,
+        btc_target_ratio,
+        translate_fn=t,
+        separator=SEPARATOR,
+        notifier_fn=notifier_fn,
+        send_tg_msg_fn=send_tg_msg,
     )
-    if notifier_fn is None:
-        send_tg_msg(tg_token, tg_chat_id, text)
-    else:
-        notifier_fn(text)
-    state["last_btc_status_report_bucket"] = report_bucket
 
 
 def fetch_daily_indicators(client, symbol, lookback_days=420):
@@ -978,41 +963,17 @@ def _compute_daily_pnls(state, total_equity, trend_equity):
 
 
 def _append_portfolio_report(log_buffer, allocation, fuel_val, daily_pnl, trend_daily_pnl, btc_snapshot):
-    append_log(log_buffer, t("portfolio_snapshot_title"))
-    append_log(
+    return report_append_portfolio_report(
         log_buffer,
-        t("portfolio_total_equity_line", total_equity=allocation["total_equity"], daily_pnl=daily_pnl),
+        allocation,
+        fuel_val,
+        daily_pnl,
+        trend_daily_pnl,
+        btc_snapshot,
+        append_log_fn=append_log,
+        translate_fn=t,
+        separator="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
     )
-    append_log(
-        log_buffer,
-        t(
-            "portfolio_btc_core_line",
-            target_ratio=allocation["btc_target_ratio"],
-            current_value=allocation["dca_val"],
-            available_value=allocation["dca_usdt_pool"],
-        ),
-    )
-    append_log(
-        log_buffer,
-        t(
-            "portfolio_trend_sleeve_line",
-            target_ratio=allocation["trend_target_ratio"],
-            current_value=allocation["trend_val"],
-            available_value=allocation["trend_usdt_pool"],
-            trend_daily_pnl=trend_daily_pnl,
-        ),
-    )
-    append_log(log_buffer, t("portfolio_bnb_fuel_reserve_line", fuel_val=fuel_val))
-    append_log(
-        log_buffer,
-        t(
-            "portfolio_btc_gate_line",
-            gate_text=t("gate_on") if btc_snapshot["regime_on"] else t("gate_off"),
-            ahr=btc_snapshot["ahr999"],
-            zscore=btc_snapshot["zscore"],
-        ),
-    )
-    append_log(log_buffer, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
 
 def _run_daily_circuit_breaker(
@@ -1081,18 +1042,14 @@ def _run_daily_circuit_breaker(
 
 
 def _append_rotation_summary(log_buffer, official_trend_pool, active_trend_pool, selected_candidates):
-    official_pool_text = ", ".join(official_trend_pool) if official_trend_pool else t("rotation_no_upstream_pool")
-    execution_pool_text = ", ".join(active_trend_pool) if active_trend_pool else t("rotation_no_execution_pool")
-    execution_pool_count = len(active_trend_pool)
-    selected_text = (
-        ", ".join(f"{symbol}({meta['weight']:.0%},RS:{meta['relative_score']:.2f})" for symbol, meta in selected_candidates.items())
-        if selected_candidates
-        else t("rotation_no_candidates")
+    return report_append_rotation_summary(
+        log_buffer,
+        official_trend_pool,
+        active_trend_pool,
+        selected_candidates,
+        append_log_fn=append_log,
+        translate_fn=t,
     )
-    append_log(log_buffer, t("rotation_upstream_official_monthly_pool", pool_text=official_pool_text))
-    append_log(log_buffer, t("rotation_current_execution_pool", pool_text=execution_pool_text))
-    append_log(log_buffer, t("rotation_current_execution_pool_size", pool_size=execution_pool_count))
-    append_log(log_buffer, t("rotation_current_execution_targets", target_text=selected_text))
 
 
 def _get_trend_sell_reason(state, symbol, curr_price, indicators, selected_candidates, atr_multiplier):
@@ -1319,29 +1276,17 @@ def _execute_trend_buys(
 
 
 def _append_trend_symbol_status(log_buffer, runtime_trend_universe, prices, trend_indicators, state, btc_snapshot):
-    for symbol in runtime_trend_universe:
-        curr_price = prices[symbol]
-        indicators = trend_indicators.get(symbol)
-        st = get_symbol_trade_state(state, symbol)
-        score_text = ""
-        if indicators and indicators["vol20"] > 0:
-            rel_score = (
-                0.5 * (indicators["roc20"] - btc_snapshot["btc_roc20"])
-                + 0.3 * (indicators["roc60"] - btc_snapshot["btc_roc60"])
-                + 0.2 * (indicators["roc120"] - btc_snapshot["btc_roc120"])
-            ) / indicators["vol20"]
-            abs_momentum = 0.5 * indicators["roc20"] + 0.3 * indicators["roc60"] + 0.2 * indicators["roc120"]
-            score_text = t("trend_symbol_score_text", rel_score=rel_score, abs_momentum=abs_momentum)
-        append_log(
-            log_buffer,
-            t(
-                "trend_symbol_status_line",
-                symbol=symbol,
-                status=t("status_holding") if st["is_holding"] else t("status_flat"),
-                price=curr_price,
-                score_text=score_text,
-            ),
-        )
+    return report_append_trend_symbol_status(
+        log_buffer,
+        runtime_trend_universe,
+        prices,
+        trend_indicators,
+        state,
+        btc_snapshot,
+        append_log_fn=append_log,
+        translate_fn=t,
+        get_symbol_trade_state_fn=get_symbol_trade_state,
+    )
 
 
 def _execute_trend_rotation(

@@ -59,6 +59,8 @@ jobs:
           BINANCE_API_SECRET: ${{ secrets.BINANCE_API_SECRET }}
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          GLOBAL_TELEGRAM_CHAT_ID: ${{ vars.GLOBAL_TELEGRAM_CHAT_ID }}
+          NOTIFY_LANG: ${{ vars.NOTIFY_LANG }}
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
 
       - name: 4. Capture execution timestamp

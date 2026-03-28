@@ -86,7 +86,7 @@ An **AI Monthly Review** workflow triggers on that issue label and posts a bilin
 | `BINANCE_API_KEY` | Runtime |
 | `BINANCE_API_SECRET` | Runtime |
 | `TG_TOKEN` | Runtime |
-| `TG_CHAT_ID` | Runtime |
+| `TG_CHAT_ID` | Runtime (optional if `GLOBAL_TELEGRAM_CHAT_ID` is provided via repo/org Variables) |
 | `GCP_SA_KEY` | Runtime |
 | `ANTHROPIC_API_KEY` | AI Review |
 
@@ -312,6 +312,13 @@ In **Settings → Secrets and variables → Actions**, add:
 | `ANTHROPIC_API_KEY` | Anthropic API key (used by the AI Review workflow to post monthly bilingual analysis) |
 
 The runtime workflow passes these into the `Run trading strategy` step; it does not use a `.env` file on the runner.
+
+It now also forwards:
+
+- `GLOBAL_TELEGRAM_CHAT_ID` from repo/org Variables
+- `NOTIFY_LANG` from repo/org Variables
+
+That means `TG_CHAT_ID` can be omitted if you already keep one shared chat target at the repo or organization level. `TG_TOKEN`, Binance API keys, and `GCP_SA_KEY` should still remain repository-specific.
 
 ### 4. GCP / Firestore
 

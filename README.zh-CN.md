@@ -273,10 +273,17 @@ AHR999: 0.45
 - `BINANCE_API_KEY`
 - `BINANCE_API_SECRET`
 - `TG_TOKEN`
-- `TG_CHAT_ID`
+- `TG_CHAT_ID`（如果仓库/组织 Variables 里已经提供 `GLOBAL_TELEGRAM_CHAT_ID`，这里可以不填）
 - `GLOBAL_TELEGRAM_CHAT_ID`
 - `GCP_SA_KEY`
 - `ANTHROPIC_API_KEY`
+
+现在 runtime workflow 也会把这两个仓库/组织 Variables 传给运行进程：
+
+- `GLOBAL_TELEGRAM_CHAT_ID`
+- `NOTIFY_LANG`
+
+也就是说，如果你在多个 quant 仓库之间保留一层很小的共享配置，这个仓库可以直接使用组织级 `GLOBAL_TELEGRAM_CHAT_ID` 和 `NOTIFY_LANG`。在这种情况下，`TG_CHAT_ID` 就变成可选；但 `TG_TOKEN`、Binance API key、`GCP_SA_KEY` 仍然应该留在这个仓库自己的 secrets 里。
 
 ### 4. GCP / Firestore
 

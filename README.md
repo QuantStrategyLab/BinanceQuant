@@ -213,6 +213,8 @@ Required:
 | `GLOBAL_TELEGRAM_CHAT_ID` | Optional shared Telegram chat ID for teams that route multiple quant services to the same destination. |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Path to GCP service account JSON (or use `GCP_SA_KEY` and write to `gcp-key.json` before run) |
 
+Across multiple quant repositories, `GLOBAL_TELEGRAM_CHAT_ID` and `NOTIFY_LANG` are reasonable shared settings. `TG_TOKEN`, Binance API keys, and GCP credential material should stay repository-specific.
+
 Optional:
 
 | Variable | Description |

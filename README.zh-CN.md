@@ -196,6 +196,8 @@
 | `GLOBAL_TELEGRAM_CHAT_ID` | 可选的共享 Telegram Chat ID。适合多个 quant 服务共用一个接收目标。 |
 | `GOOGLE_APPLICATION_CREDENTIALS` | GCP 服务账号 JSON 路径 |
 
+如果你在多个 quant 仓库之间保留一层共享配置，通常只建议共享 `GLOBAL_TELEGRAM_CHAT_ID` 和 `NOTIFY_LANG`。`TG_TOKEN`、Binance API Key、GCP 凭据这些仍然应该由这个仓库自己管理。
+
 可选：
 
 | 变量 | 说明 |

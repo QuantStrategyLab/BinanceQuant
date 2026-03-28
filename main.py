@@ -7,14 +7,10 @@ helpers, and live service adapters live in dedicated modules.
 
 import os
 import json
-import pandas as pd
-import math
-import numpy as np
 import time
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from binance.client import Client
 import traceback
 from notify_i18n_support import translate as t
 from degraded_mode_support import (
@@ -23,11 +19,14 @@ from degraded_mode_support import (
     resolve_trend_pool_source as dm_resolve_trend_pool_source,
     update_trend_pool_state as dm_update_trend_pool_state,
 )
-from exchange_support import (
-    ensure_asset_available as ex_ensure_asset_available,
-    format_qty as ex_format_qty,
-    get_total_balance as ex_get_total_balance,
-    manage_usdt_earn_buffer as ex_manage_usdt_earn_buffer,
+from quant_platform_kit.binance import (
+    connect_client as qpk_connect_client,
+    ensure_asset_available as qpk_ensure_asset_available,
+    fetch_btc_market_snapshot as qpk_fetch_btc_market_snapshot,
+    fetch_daily_indicators as qpk_fetch_daily_indicators,
+    format_qty as qpk_format_qty,
+    get_total_balance as qpk_get_total_balance,
+    manage_usdt_earn_buffer as qpk_manage_usdt_earn_buffer,
 )
 from live_services import (
     get_firestore_client as live_get_firestore_client,
@@ -412,11 +411,11 @@ def send_tg_msg(token, chat_id, text):
 # ==========================================
 def get_total_balance(client, asset, log_buffer=None):
     """Total balance for asset (spot + flexible earn)."""
-    return ex_get_total_balance(
+    return qpk_get_total_balance(
         client,
         asset,
-        log_buffer=log_buffer,
-        append_log_fn=append_log,
+        on_spot_error=lambda exc: append_log(log_buffer, t("spot_balance_lookup_failed", asset=asset, error=exc)),
+        on_earn_error=lambda exc: append_log(log_buffer, t("earn_balance_lookup_failed", asset=asset, error=exc)),
         balance_error_cls=BalanceFetchError,
     )
 
@@ -427,30 +426,36 @@ def log_and_notify(log_buffer, tg_token, tg_chat_id, text):
 
 def ensure_asset_available(client, asset, required_amount, tg_token, tg_chat_id):
     """Redeem from flexible earn if spot balance is below required amount."""
-    return ex_ensure_asset_available(
+    return qpk_ensure_asset_available(
         client,
         asset,
         required_amount,
-        tg_token=tg_token,
-        tg_chat_id=tg_chat_id,
-        send_tg_msg_fn=send_tg_msg,
+        on_redeem=lambda amount: send_tg_msg(
+            tg_token,
+            tg_chat_id,
+            t("execution_spot_short_redeeming_from_earn", asset=asset, amount=amount),
+        ),
+        on_error=lambda exc: send_tg_msg(
+            tg_token,
+            tg_chat_id,
+            t("execution_redeem_failed_asset", asset=asset, error=exc),
+        ),
         sleep_fn=time.sleep,
     )
 
 def manage_usdt_earn_buffer(client, target_buffer, tg_token, tg_chat_id, log_buffer):
     """Keep USDT spot buffer near target by subscribing/redeeming flexible earn."""
-    ex_manage_usdt_earn_buffer(
+    qpk_manage_usdt_earn_buffer(
         client,
         target_buffer,
-        tg_token=tg_token,
-        tg_chat_id=tg_chat_id,
-        log_buffer=log_buffer,
-        append_log_fn=append_log,
+        on_subscribe=lambda amount: append_log(log_buffer, t("cash_manager_subscribed_to_earn", amount=amount)),
+        on_redeem=lambda amount: append_log(log_buffer, t("cash_manager_redeeming_to_spot", amount=amount)),
+        on_error=lambda exc: append_log(log_buffer, t("usdt_earn_buffer_maintenance_failed", error=exc)),
     )
 
 def format_qty(client, symbol, qty):
     """Round quantity to exchange LOT_SIZE to avoid filter errors."""
-    return ex_format_qty(client, symbol, qty)
+    return qpk_format_qty(client, symbol, qty)
 
 def get_dynamic_btc_target_ratio(total_equity):
     """BTC target weight increases with equity; no hard minimum."""
@@ -528,125 +533,23 @@ def maybe_send_periodic_btc_status_report(
 
 def fetch_daily_indicators(client, symbol, lookback_days=420):
     """Daily indicators for one symbol (rotation and risk)."""
-    klines = client.get_historical_klines(symbol, Client.KLINE_INTERVAL_1DAY, f"{lookback_days} days ago UTC")
-    if not klines:
-        return None
-
-    df = pd.DataFrame(klines).iloc[:, :6]
-    df.columns = ["time", "open", "high", "low", "close", "vol"]
-    df[["high", "low", "close", "vol"]] = df[["high", "low", "close", "vol"]].astype(float)
-    df["quote_vol"] = df["close"] * df["vol"]
-
-    df["sma20"] = df["close"].rolling(20).mean()
-    df["sma60"] = df["close"].rolling(60).mean()
-    df["sma200"] = df["close"].rolling(200).mean()
-    df["roc20"] = df["close"].pct_change(20)
-    df["roc60"] = df["close"].pct_change(60)
-    df["roc120"] = df["close"].pct_change(120)
-    df["vol20"] = df["close"].pct_change().rolling(20).std()
-    df["tr"] = pd.concat(
-        [
-            df["high"] - df["low"],
-            (df["high"] - df["close"].shift(1)).abs(),
-            (df["low"] - df["close"].shift(1)).abs(),
-        ],
-        axis=1,
-    ).max(axis=1)
-    df["atr14"] = df["tr"].rolling(14).mean()
-    df["avg_quote_vol_30"] = df["quote_vol"].rolling(30).mean()
-    df["avg_quote_vol_90"] = df["quote_vol"].rolling(90).mean()
-    df["avg_quote_vol_180"] = df["quote_vol"].rolling(180).mean()
-    df["trend_persist_90"] = (df["close"] > df["sma200"]).rolling(90).mean()
-    df["age_days"] = np.arange(1, len(df) + 1)
-
-    latest = df.iloc[-1]
-    required_fields = [
-        "close",
-        "sma20",
-        "sma60",
-        "sma200",
-        "roc20",
-        "roc60",
-        "roc120",
-        "vol20",
-        "atr14",
-        "avg_quote_vol_30",
-        "avg_quote_vol_90",
-        "avg_quote_vol_180",
-        "trend_persist_90",
-    ]
-    if any(pd.isna(latest[field]) for field in required_fields):
-        return None
-
-    return {
-        "close": float(latest["close"]),
-        "sma20": float(latest["sma20"]),
-        "sma60": float(latest["sma60"]),
-        "sma200": float(latest["sma200"]),
-        "roc20": float(latest["roc20"]),
-        "roc60": float(latest["roc60"]),
-        "roc120": float(latest["roc120"]),
-        "vol20": float(latest["vol20"]),
-        "atr14": float(latest["atr14"]),
-        "avg_quote_vol_30": float(latest["avg_quote_vol_30"]),
-        "avg_quote_vol_90": float(latest["avg_quote_vol_90"]),
-        "avg_quote_vol_180": float(latest["avg_quote_vol_180"]),
-        "trend_persist_90": float(latest["trend_persist_90"]),
-        "age_days": int(latest["age_days"]),
-    }
+    return qpk_fetch_daily_indicators(client, symbol, lookback_days=lookback_days)
 
 
 def fetch_btc_market_snapshot(client, btc_price, lookback_days=700, log_buffer=None):
     """Single BTC daily series for DCA and trend gate."""
-    try:
-        klines = client.get_historical_klines("BTCUSDT", Client.KLINE_INTERVAL_1DAY, f"{lookback_days} days ago UTC")
-    except Exception as e:
-        if log_buffer is not None:
-            log_buffer.append(t("btc_daily_fetch_failed", error=e))
-        return None
-
-    if not klines:
-        if log_buffer is not None:
-            log_buffer.append(t("btc_daily_data_empty"))
-        return None
-
-    df = pd.DataFrame(klines).iloc[:, :6]
-    df.columns = ["time", "open", "high", "low", "close", "vol"]
-    df["time"] = pd.to_datetime(df["time"], unit="ms", utc=True)
-    df["close"] = df["close"].astype(float)
-    df["ma200"] = df["close"].rolling(200).mean()
-    df["std200"] = df["close"].rolling(200).std()
-    df["zscore"] = (df["close"] - df["ma200"]) / df["std200"]
-    df["geom200"] = np.exp(np.log(df["close"]).rolling(200).mean())
-    df["sell_trigger"] = df["zscore"].rolling(365).quantile(0.95).clip(lower=2.5)
-    df["ma200_slope"] = df["ma200"].pct_change(20)
-    df["btc_roc20"] = df["close"].pct_change(20)
-    df["btc_roc60"] = df["close"].pct_change(60)
-    df["btc_roc120"] = df["close"].pct_change(120)
-
-    # All core fields must be non-NaN
-    required_fields = ["ma200", "zscore", "geom200", "sell_trigger", "ma200_slope", "btc_roc20", "btc_roc60", "btc_roc120"]
-    valid = df.dropna(subset=required_fields)
-    if valid.empty:
-        if log_buffer is not None:
-            last_time = df["time"].iloc[-1] if not df.empty else None
-            log_buffer.append(t("btc_data_insufficient", length=len(df), last_time=last_time))
-        return None
-
-    latest = valid.iloc[-1]
-    regime_on = btc_price > float(latest["ma200"]) and float(latest["ma200_slope"]) > 0
-    return {
-        "ma200": float(latest["ma200"]),
-        "zscore": float(latest["zscore"]),
-        "geom200": float(latest["geom200"]),
-        "sell_trigger": float(latest["sell_trigger"]),
-        "ma200_slope": float(latest["ma200_slope"]),
-        "ahr999": float(btc_price / latest["geom200"]),
-        "btc_roc20": float(latest["btc_roc20"]),
-        "btc_roc60": float(latest["btc_roc60"]),
-        "btc_roc120": float(latest["btc_roc120"]),
-        "regime_on": regime_on,
-    }
+    return qpk_fetch_btc_market_snapshot(
+        client,
+        btc_price,
+        lookback_days=lookback_days,
+        on_fetch_error=lambda exc: log_buffer.append(t("btc_daily_fetch_failed", error=exc)) if log_buffer is not None else None,
+        on_empty=lambda: log_buffer.append(t("btc_daily_data_empty")) if log_buffer is not None else None,
+        on_insufficient=lambda length, last_time: log_buffer.append(
+            t("btc_data_insufficient", length=length, last_time=last_time)
+        )
+        if log_buffer is not None
+        else None,
+    )
 
 
 def rank_normalize(values):
@@ -944,8 +847,7 @@ def _ensure_runtime_client(runtime, report):
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            runtime.client = Client(runtime.api_key, runtime.api_secret, {"timeout": 30})
-            runtime.client.ping()
+            runtime.client = qpk_connect_client(runtime.api_key, runtime.api_secret, timeout=30)
             return True
         except Exception as exc:
             if attempt < max_retries - 1:

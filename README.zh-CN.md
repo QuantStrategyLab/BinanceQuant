@@ -29,7 +29,7 @@
 - **strategy_core.py** — live 和 research 共用的纯策略计算。
 - **runtime_support.py** — live / dry-run 共用的运行时和执行报告辅助。
 - **live_services.py** — Firestore 状态和 Telegram 通知适配层。
-- **exchange_support.py** — 余额、Earn 水位和下单数量格式化辅助。
+- **QuantPlatformKit.binance** — 复用 Binance 客户端初始化、余额辅助、行情快照和下单数量格式化。
 - **trend_pool_support.py** — 上游趋势池 payload 解析、校验和 fallback 辅助。
 - **trade_state_support.py** — 持仓状态标准化、退役仓位跟踪、重复动作保护。
 - **research/backtest.py** — 研究和审计用回测，不参与 live 小时执行。

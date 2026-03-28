@@ -51,7 +51,7 @@ Non-goals:
 - **market_snapshot_support.py** — Market snapshot assembly helpers used by the live cycle and replay regression tests.
 - **degraded_mode_support.py** — Degraded-mode fallback ladder and trend-pool source state helpers.
 - **live_services.py** — Firestore state and Telegram notification adapters for live operation.
-- **exchange_support.py** — Spot balance, earn-buffer, and exchange quantity-format helpers.
+- **QuantPlatformKit.binance** — Shared Binance client bootstrap, balance helpers, market-data snapshots, and quantity-format helpers.
 - **trend_pool_support.py** — Upstream trend-pool contract parsing, validation, and fallback helpers.
 - **trade_state_support.py** — Trade-state normalization and retired-position tracking helpers.
 - **research/backtest.py** — Optional audit-only backtest / strategy-comparison runner; not part of the live execution contract.

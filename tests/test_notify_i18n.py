@@ -65,6 +65,9 @@ install_test_stubs()
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+PLATFORM_KIT_SRC = PROJECT_ROOT.parent / "QuantPlatformKit" / "src"
+if str(PLATFORM_KIT_SRC) not in sys.path:
+    sys.path.insert(0, str(PLATFORM_KIT_SRC))
 
 import main
 from degraded_mode_support import format_trend_pool_source_logs

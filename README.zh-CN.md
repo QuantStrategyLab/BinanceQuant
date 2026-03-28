@@ -192,7 +192,8 @@
 | `BINANCE_API_KEY` | Binance API Key |
 | `BINANCE_API_SECRET` | Binance API Secret |
 | `TG_TOKEN` | Telegram Bot Token |
-| `TG_CHAT_ID` | Telegram 告警目标 Chat ID |
+| `TG_CHAT_ID` | 当前服务自己的 Telegram 告警目标 Chat ID。不填时会回退到 `GLOBAL_TELEGRAM_CHAT_ID`。 |
+| `GLOBAL_TELEGRAM_CHAT_ID` | 可选的共享 Telegram Chat ID。适合多个 quant 服务共用一个接收目标。 |
 | `GOOGLE_APPLICATION_CREDENTIALS` | GCP 服务账号 JSON 路径 |
 
 可选：
@@ -271,6 +272,7 @@ AHR999: 0.45
 - `BINANCE_API_SECRET`
 - `TG_TOKEN`
 - `TG_CHAT_ID`
+- `GLOBAL_TELEGRAM_CHAT_ID`
 - `GCP_SA_KEY`
 - `ANTHROPIC_API_KEY`
 
@@ -288,6 +290,7 @@ cd /path/to/BinanceQuant
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 export BINANCE_API_KEY=... BINANCE_API_SECRET=... TG_TOKEN=... TG_CHAT_ID=...
+# 或者: export GLOBAL_TELEGRAM_CHAT_ID=...
 export GOOGLE_APPLICATION_CREDENTIALS=/path/to/gcp-sa.json
 python main.py
 ```

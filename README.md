@@ -209,7 +209,8 @@ Required:
 | `BINANCE_API_KEY` | Binance API key |
 | `BINANCE_API_SECRET` | Binance API secret |
 | `TG_TOKEN` | Telegram bot token |
-| `TG_CHAT_ID` | Telegram chat ID for alerts |
+| `TG_CHAT_ID` | Per-service Telegram chat ID for alerts. Falls back to `GLOBAL_TELEGRAM_CHAT_ID` if unset. |
+| `GLOBAL_TELEGRAM_CHAT_ID` | Optional shared Telegram chat ID for teams that route multiple quant services to the same destination. |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Path to GCP service account JSON (or use `GCP_SA_KEY` and write to `gcp-key.json` before run) |
 
 Optional:
@@ -303,7 +304,8 @@ In **Settings → Secrets and variables → Actions**, add:
 | `BINANCE_API_KEY` | Binance API key |
 | `BINANCE_API_SECRET` | Binance API secret |
 | `TG_TOKEN` | Telegram bot token |
-| `TG_CHAT_ID` | Telegram chat ID |
+| `TG_CHAT_ID` | Per-service Telegram chat ID. Falls back to `GLOBAL_TELEGRAM_CHAT_ID` if unset. |
+| `GLOBAL_TELEGRAM_CHAT_ID` | Optional shared Telegram chat ID for teams that route multiple quant services to the same destination. |
 | `GCP_SA_KEY` | Full JSON content of the GCP service account key (written by the runtime workflow to a temp file and exported as `GOOGLE_APPLICATION_CREDENTIALS` only for the strategy step) |
 | `ANTHROPIC_API_KEY` | Anthropic API key (used by the AI Review workflow to post monthly bilingual analysis) |
 
@@ -325,6 +327,7 @@ REQ_FILE="requirements-lock.txt"
 if [ ! -f "$REQ_FILE" ]; then REQ_FILE="requirements.txt"; fi
 pip install -r "$REQ_FILE"
 export BINANCE_API_KEY=... BINANCE_API_SECRET=... TG_TOKEN=... TG_CHAT_ID=...
+# or: export GLOBAL_TELEGRAM_CHAT_ID=...
 export GOOGLE_APPLICATION_CREDENTIALS=/path/to/gcp-sa.json
 python main.py
 ```

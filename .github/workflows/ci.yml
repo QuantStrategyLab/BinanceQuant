@@ -28,8 +28,10 @@ jobs:
         run: |
           python -m py_compile \
             application/cycle_service.py \
+            application/state_service.py \
             degraded_mode_support.py \
             entrypoints/cli.py \
+            infra/state_store.py \
             market_snapshot_support.py \
             main.py \
             notify_i18n_support.py \

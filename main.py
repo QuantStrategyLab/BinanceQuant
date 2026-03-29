@@ -31,8 +31,6 @@ from quant_platform_kit.binance import (
 from live_services import (
     get_firestore_client as live_get_firestore_client,
     get_state_doc_ref as live_get_state_doc_ref,
-    load_trade_state as live_load_trade_state,
-    save_trade_state as live_save_trade_state,
     send_tg_msg as live_send_tg_msg,
 )
 from market_snapshot_support import (
@@ -55,6 +53,14 @@ from runtime_config_support import (
     load_cycle_execution_settings as rc_load_cycle_execution_settings,
 )
 from application.cycle_service import execute_strategy_cycle
+from application.state_service import (
+    append_trend_pool_source_logs as app_append_trend_pool_source_logs,
+    load_cycle_state as app_load_cycle_state,
+)
+from infra.state_store import (
+    load_runtime_trade_state as infra_load_runtime_trade_state,
+    save_runtime_trade_state as infra_save_runtime_trade_state,
+)
 from reporting.status_reports import (
     append_portfolio_report as report_append_portfolio_report,
     append_rotation_summary as report_append_rotation_summary,
@@ -389,21 +395,17 @@ def record_trend_action(state, symbol, action, action_date):
 # 1. State persistence and Telegram
 # ==========================================
 def get_trade_state(normalize=True):
-    return live_load_trade_state(
+    return infra_load_runtime_trade_state(
         normalize_fn=normalize_trade_state,
         default_state_factory=build_default_state,
         normalize=normalize,
-        collection="strategy",
-        document="MULTI_ASSET_STATE",
     )
 
 
 def set_trade_state(data):
-    live_save_trade_state(
+    infra_save_runtime_trade_state(
         data,
         normalize_fn=normalize_trade_state,
-        collection="strategy",
-        document="MULTI_ASSET_STATE",
     )
 
 
@@ -826,6 +828,11 @@ def build_live_runtime(now_utc=None):
     )
 
 
+def _set_runtime_trend_universe(resolved_trend_universe):
+    global TREND_UNIVERSE
+    TREND_UNIVERSE = resolved_trend_universe
+
+
 def _ensure_runtime_client(runtime, report):
     if runtime.client is not None:
         return True
@@ -850,33 +857,29 @@ def _ensure_runtime_client(runtime, report):
 
 
 def _load_cycle_state(runtime, report, allow_new_trend_entries_on_degraded):
-    global TREND_UNIVERSE
-
-    raw_state = runtime.state_loader(normalize=False)
-    if raw_state is None:
-        append_report_error(
-            report,
-            "Failed to load Firestore state. Check GCP credentials (GCP_SA_KEY / GOOGLE_APPLICATION_CREDENTIALS), service account validity, and Firestore API enablement.",
-            stage="state_load",
-        )
-        report["status"] = "aborted"
-        return None
-
-    TREND_UNIVERSE, trend_pool_resolution = resolve_runtime_trend_pool(runtime, raw_state)
-    state = normalize_trade_state(raw_state)
-    update_trend_pool_state(state, trend_pool_resolution)
-    runtime_set_trade_state(runtime, report, state, reason="trend_pool_metadata_refresh")
-    runtime_trend_universe = get_runtime_trend_universe(state)
-    allow_new_trend_entries = (not trend_pool_resolution["degraded"]) or allow_new_trend_entries_on_degraded
-    return state, trend_pool_resolution, runtime_trend_universe, allow_new_trend_entries
+    return app_load_cycle_state(
+        runtime,
+        report,
+        allow_new_trend_entries_on_degraded,
+        state_loader=runtime.state_loader,
+        resolve_runtime_trend_pool=resolve_runtime_trend_pool,
+        normalize_trade_state=normalize_trade_state,
+        update_trend_pool_state=update_trend_pool_state,
+        runtime_set_trade_state=runtime_set_trade_state,
+        get_runtime_trend_universe=get_runtime_trend_universe,
+        append_report_error=append_report_error,
+        trend_universe_setter=_set_runtime_trend_universe,
+    )
 
 
 def _append_trend_pool_source_logs(log_buffer, trend_pool_resolution, allow_new_trend_entries):
-    for line in dm_format_trend_pool_source_logs(
+    app_append_trend_pool_source_logs(
+        log_buffer,
         trend_pool_resolution,
-        allow_new_trend_entries=allow_new_trend_entries,
-    ):
-        append_log(log_buffer, line)
+        allow_new_trend_entries,
+        formatter=dm_format_trend_pool_source_logs,
+        append_log_fn=append_log,
+    )
 
 
 def _capture_market_snapshot(runtime, report, runtime_trend_universe, log_buffer, min_bnb_value, buy_bnb_amount):

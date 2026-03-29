@@ -1,1 +1,1 @@
-"""Research and audit tooling for BinanceQuant."""
+"""Research and audit tooling for BinancePlatform."""

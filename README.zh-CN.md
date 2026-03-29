@@ -1,4 +1,4 @@
-# BinanceQuant
+# BinancePlatform
 
 语言: [English](README.md) | 简体中文
 
@@ -299,7 +299,7 @@ AHR999: 0.45
 仅供本地测试：
 
 ```bash
-cd /path/to/BinanceQuant
+cd /path/to/BinancePlatform
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 export BINANCE_API_KEY=... BINANCE_API_SECRET=... TG_TOKEN=... GLOBAL_TELEGRAM_CHAT_ID=...

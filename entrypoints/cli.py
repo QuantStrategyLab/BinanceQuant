@@ -1,4 +1,4 @@
-"""CLI entrypoint helpers for BinanceQuant."""
+"""CLI entrypoint helpers for BinancePlatform."""
 
 from __future__ import annotations
 

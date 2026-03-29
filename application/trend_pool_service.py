@@ -1,4 +1,4 @@
-"""Application-level trend pool resolution helpers for BinanceQuant."""
+"""Application-level trend pool resolution helpers for BinancePlatform."""
 
 from __future__ import annotations
 

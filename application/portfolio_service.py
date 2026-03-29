@@ -1,4 +1,4 @@
-"""Application-level portfolio and daily-state helpers for BinanceQuant."""
+"""Application-level portfolio and daily-state helpers for BinancePlatform."""
 
 from __future__ import annotations
 

@@ -1,1 +1,1 @@
-"""Reporting helpers for BinanceQuant."""
+"""Reporting helpers for BinancePlatform."""

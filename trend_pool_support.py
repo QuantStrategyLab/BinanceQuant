@@ -347,7 +347,7 @@ def build_static_trend_pool_resolution(*, now_utc=None, messages=None, static_tr
         "pool_size": len(static_trend_universe),
         "symbols": list(static_trend_universe.keys()),
         "symbol_map": {symbol: meta.copy() for symbol, meta in static_trend_universe.items()},
-        "source_project": "BinanceQuant",
+        "source_project": "BinancePlatform",
     }
     return {
         "source_kind": "static",

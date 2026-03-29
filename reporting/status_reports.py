@@ -1,4 +1,4 @@
-"""Status and portfolio reporting helpers for BinanceQuant."""
+"""Status and portfolio reporting helpers for BinancePlatform."""
 
 from __future__ import annotations
 

@@ -1,2 +1,2 @@
-"""Entrypoint helpers for BinanceQuant."""
+"""Entrypoint helpers for BinancePlatform."""
 

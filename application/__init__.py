@@ -1,2 +1,2 @@
-"""Application services for BinanceQuant."""
+"""Application services for BinancePlatform."""
 

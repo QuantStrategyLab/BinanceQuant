@@ -1,4 +1,4 @@
-"""Application-level trade execution helpers for BinanceQuant."""
+"""Application-level trade execution helpers for BinancePlatform."""
 
 from __future__ import annotations
 

@@ -2,11 +2,11 @@
 
 _Last reviewed: 2026-03-30_
 
-This checklist is for renaming the runtime repository from `BinanceQuant` to `BinancePlatform`.
+This checklist records the completed runtime repository rename from `BinanceQuant` to `BinancePlatform`.
 
 ## Current status
 
-- Current GitHub repo: `QuantStrategyLab/BinanceQuant`
+- Current GitHub repo: `QuantStrategyLab/BinancePlatform`
 - Target GitHub repo: `QuantStrategyLab/BinancePlatform`
 - Current runtime model: Oracle Cloud / VPS hosted self-hosted runner
 - Current runtime trigger: external scheduler calling GitHub `workflow_dispatch`
@@ -28,7 +28,7 @@ So the main rename risk is not GCP. The main risk is breaking the external dispa
 
 ### External runtime dependencies
 
-These must be checked outside this repo before renaming:
+These were the external dependencies that had to be checked before renaming:
 
 1. Oracle/VPS cron or scheduler job that calls:
    - `POST /repos/QuantStrategyLab/BinanceQuant/actions/workflows/main.yml/dispatches`
@@ -84,5 +84,4 @@ These can be updated in the repo during the rename change:
 
 ## Blocking condition
 
-Do not rename the GitHub repo until the external dispatch caller is confirmed and updated.
-If that caller still posts to the old repo path, runtime dispatch may stop even if git clone redirects still work.
+This rename is now completed. The external dispatch caller and VPS checkout were updated to `QuantStrategyLab/BinancePlatform`, and manual `workflow_dispatch` was re-verified after the rename.

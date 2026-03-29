@@ -1,4 +1,4 @@
-# BinanceQuant
+# BinancePlatform
 
 Language: English | [Simplified Chinese](README.zh-CN.md)
 
@@ -12,7 +12,7 @@ Automated crypto quant for Binance spot: BTC DCA core plus altcoin trend rotatio
 
 ## Execution Engine Boundary
 
-`BinanceQuant` is the downstream execution engine in this two-repo setup.
+`BinancePlatform` is the downstream execution engine in this two-repo setup.
 
 Upstream inputs it expects from `CryptoLeaderRotation`:
 
@@ -334,7 +334,7 @@ It now also requires these repo or organization Variables:
 For local testing only:
 
 ```bash
-cd /path/to/BinanceQuant
+cd /path/to/BinancePlatform
 python3 -m venv venv && source venv/bin/activate
 REQ_FILE="requirements-lock.txt"
 if [ ! -f "$REQ_FILE" ]; then REQ_FILE="requirements.txt"; fi

@@ -2,7 +2,7 @@
 
 ## Scope
 
-This runbook covers the live execution path in `BinanceQuant`.
+This runbook covers the live execution path in `BinancePlatform`.
 
 Primary entrypoints:
 
@@ -19,7 +19,7 @@ Supporting modules with operational impact:
 
 ## Execution Boundary
 
-`BinanceQuant` is the downstream execution engine.
+`BinancePlatform` is the downstream execution engine.
 
 It is responsible for:
 
@@ -140,7 +140,7 @@ Operator action:
 Preferred local install path:
 
 ```bash
-cd /path/to/BinanceQuant
+cd /path/to/BinancePlatform
 python3 -m venv venv
 source venv/bin/activate
 REQ_FILE="requirements-lock.txt"

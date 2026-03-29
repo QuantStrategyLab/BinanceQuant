@@ -1,1 +1,1 @@
-"""Infrastructure helpers for BinanceQuant."""
+"""Infrastructure helpers for BinancePlatform."""

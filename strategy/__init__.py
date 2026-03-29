@@ -1,1 +1,1 @@
-"""Strategy-layer helpers for BinanceQuant."""
+"""Strategy-layer helpers for BinancePlatform."""

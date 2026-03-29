@@ -1,4 +1,4 @@
-"""Binance runtime infrastructure helpers for BinanceQuant."""
+"""Binance runtime infrastructure helpers for BinancePlatform."""
 
 from __future__ import annotations
 

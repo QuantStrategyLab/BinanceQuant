@@ -1,4 +1,4 @@
-"""Strategy-level trend rotation rules for BinanceQuant."""
+"""Strategy-level trend rotation rules for BinancePlatform."""
 
 from __future__ import annotations
 

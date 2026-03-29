@@ -30,7 +30,7 @@ jobs:
             Bash(git log:*)
             Bash(git diff:*)
           custom_instructions: |
-            You are reviewing the monthly execution report for BinanceQuant,
+            You are reviewing the monthly execution report for BinancePlatform,
             an automated crypto quantitative trading system for Binance Spot.
             It runs hourly, executing a BTC DCA core strategy plus altcoin trend
             rotation using symbols from an upstream CryptoLeaderRotation pool.

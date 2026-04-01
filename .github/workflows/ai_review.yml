@@ -3,13 +3,19 @@ name: AI Monthly Review
 "on":
   issues:
     types: [opened]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Issue number to review"
+        required: true
 
 jobs:
   ai-review:
-    if: contains(github.event.issue.labels.*.name, 'monthly-review')
+    if: contains(github.event.issue.labels.*.name, 'monthly-review') || inputs.issue_number != ''
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write
       issues: write
 
     steps:
@@ -20,16 +26,14 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          model: claude-sonnet-4-6-20250514
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           use_bedrock: false
           use_vertex: false
-          allowed_tools: |
-            Read
-            Glob
-            Grep
-            Bash(git log:*)
-            Bash(git diff:*)
-          custom_instructions: |
+          prompt: |
+            Review GitHub issue #${{ inputs.issue_number || github.event.issue.number }} in this repository.
+            The issue body contains the full monthly execution review data.
+            Post your final bilingual review as a comment on that issue.
+
             You are reviewing the monthly execution report for BinancePlatform,
             an automated crypto quantitative trading system for Binance Spot.
             It runs hourly, executing a BTC DCA core strategy plus altcoin trend

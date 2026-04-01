@@ -13,6 +13,7 @@ jobs:
   report:
     runs-on: ubuntu-latest
     permissions:
+      actions: write
       contents: read
       issues: write
 
@@ -56,15 +57,30 @@ jobs:
         run: |
           python scripts/run_monthly_report_bundle.py \
             --month "${{ steps.month.outputs.month }}" \
+            --hourly-dir "hourly/${{ steps.month.outputs.month }}" \
             --output-dir data/output
 
       - name: Create monthly review issue
         if: steps.fetch.outputs.has_data == 'true'
+        id: issue
         run: |
+          set -euo pipefail
           MONTH="${{ steps.month.outputs.month }}"
-          gh issue create \
+          gh label create monthly-review --description "Automated monthly execution AI review" --color "0E8A16" 2>/dev/null || true
+          ISSUE_URL=$(gh issue create \
             --title "Monthly Execution Review: ${MONTH}" \
             --label "monthly-review" \
-            --body-file data/output/ai_review_input.md
+            --body-file data/output/ai_review_input.md)
+          echo "issue_url=${ISSUE_URL}" >> "$GITHUB_OUTPUT"
+          echo "issue_number=${ISSUE_URL##*/}" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trigger AI monthly review
+        if: steps.fetch.outputs.has_data == 'true'
+        run: |
+          gh workflow run ai_review.yml \
+            --ref "${GITHUB_REF_NAME}" \
+            -f issue_number="${{ steps.issue.outputs.issue_number }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

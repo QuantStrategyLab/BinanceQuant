@@ -221,6 +221,17 @@ jobs:
             --output-file data/output/ai_review/final_review.md \
             --primary-title "Claude Primary Review"
 
+      - name: Build final AI review payload
+        if: steps.claude_review.outcome == 'success'
+        run: |
+          python3 scripts/build_ai_review_payload.py \
+            --source-repo "${GITHUB_REPOSITORY}" \
+            --review-kind execution_runtime \
+            --issue-context-file data/output/ai_review/issue_context.json \
+            --secondary-review-file data/output/ai_review/secondary_review.json \
+            --run-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --output-file data/output/ai_review/final_review_payload.json
+
       - name: Upload AI review artifact
         if: steps.claude_review.outcome == 'success'
         uses: actions/upload-artifact@v7

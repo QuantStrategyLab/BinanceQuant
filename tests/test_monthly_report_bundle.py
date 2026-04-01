@@ -137,3 +137,7 @@ class TestMonthlyReportBundle(unittest.TestCase):
 
         self.assertIn("Monthly Execution Review", md)
         self.assertIn("2026-03", md)
+        self.assertIn("downstream monthly execution review", md)
+        self.assertIn("not a pure upstream pool publication", md)
+        self.assertIn("external balance flows", md)
+        self.assertIn("recorded strategy intents", md)

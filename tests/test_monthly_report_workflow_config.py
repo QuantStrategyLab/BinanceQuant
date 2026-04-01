@@ -31,6 +31,9 @@ class MonthlyReportWorkflowConfigTests(unittest.TestCase):
         self.assertIn("${{ inputs.issue_number || github.event.issue.number }}", workflow)
         self.assertIn("Do not use Bash or ask for additional approval.", workflow)
         self.assertIn("The workflow will publish your final review as the issue comment.", workflow)
+        self.assertIn("This is a downstream execution review, not a pure upstream pool review.", workflow)
+        self.assertIn("do not treat equity delta as pure strategy PnL", workflow)
+        self.assertIn("not a separate exchange fill reconciliation", workflow)
         self.assertIn("post_monthly_ai_review_comment.py", workflow)
         self.assertIn("steps.claude_review.outputs.execution_file", workflow)
 

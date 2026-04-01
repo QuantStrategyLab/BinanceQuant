@@ -230,6 +230,16 @@ def format_review_markdown(bundle: dict[str, Any]) -> str:
     lines.append(f"_Generated: {generated}_")
     lines.append("")
 
+    # Scope / interpretation notes
+    lines.append("## Report Scope")
+    lines.append("")
+    lines.append("- This is BinancePlatform's downstream monthly execution review, not a pure upstream pool publication.")
+    lines.append("- It summarizes runtime health, recorded trade intents, earn buffer operations, circuit breaker activity, degraded mode, and upstream pool changes.")
+    lines.append("- Upstream pool changes are included as execution context from CryptoLeaderRotation, but they are only one input section of this report.")
+    lines.append("- Equity deltas in this report are raw month-start vs month-end snapshots and may include manual deposits, withdrawals, or other external balance flows.")
+    lines.append("- Trade and earn sections reflect execution intents/actions recorded in hourly reports, not a separate exchange fill reconciliation ledger.")
+    lines.append("")
+
     # Run statistics
     lines.append("## Run Statistics")
     lines.append("")
@@ -255,9 +265,13 @@ def format_review_markdown(bundle: dict[str, Any]) -> str:
     lines.append(f"| PnL (USDT) | {pnl['pnl_usdt']} |")
     lines.append(f"| PnL (%) | {pnl['pnl_pct']} |")
     lines.append("")
+    lines.append("> Note: Equity deltas may include external balance flows and should not be interpreted as pure strategy PnL without separate cash-flow reconciliation.")
+    lines.append("")
 
     # Trade summary
     lines.append("## Trade Summary")
+    lines.append("")
+    lines.append("> Note: Trade counts below are based on recorded strategy intents in hourly execution reports, not exchange fill reconciliation.")
     lines.append("")
     lines.append("### BTC Core (DCA)")
     lines.append("")
@@ -348,11 +362,11 @@ def format_review_markdown(bundle: dict[str, Any]) -> str:
     # Review questions
     lines.append("## Review Questions")
     lines.append("")
-    lines.append("1. Is the PnL trend consistent with market conditions this month?")
+    lines.append("1. Does the equity trend look explainable once possible external deposits/withdrawals are considered?")
     lines.append("2. Were any circuit breaker events justified, or do thresholds need adjusting?")
     lines.append("3. Did upstream pool changes have a noticeable impact on performance?")
     lines.append("4. Are the failed runs isolated incidents or part of a pattern?")
-    lines.append("5. Should BTC DCA cadence or sizing be adjusted based on this month's data?")
+    lines.append("5. Do the recorded trade intents suggest BTC DCA cadence or trend sizing should be adjusted?")
     lines.append("6. Were earn buffer subscribe/redeem operations executed at appropriate times?")
     lines.append("")
 

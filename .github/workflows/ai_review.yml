@@ -44,6 +44,14 @@ jobs:
             It runs hourly, executing a BTC DCA core strategy plus altcoin trend
             rotation using symbols from an upstream CryptoLeaderRotation pool.
 
+            This is a downstream execution review, not a pure upstream pool review.
+            Upstream pool changes are only one input section from CryptoLeaderRotation.
+            Equity changes may include manual deposits, withdrawals, or other external
+            balance flows, so do not treat equity delta as pure strategy PnL unless
+            the report contains explicit cash-flow evidence.
+            Trade and earn sections in the report are based on recorded hourly
+            execution intents/actions, not a separate exchange fill reconciliation.
+
             The Issue body contains the full monthly execution review data.
             Analyze it and provide your review in BOTH English and Chinese.
 
@@ -68,6 +76,7 @@ jobs:
                - Overall portfolio performance for the month.
                - BTC core vs trend sleeve performance separately.
                - Any concerning drawdowns?
+               - Explicitly separate raw equity change from strategy-attributable PnL when cash-flow context is missing.
 
             5. **Upstream Pool Change Impact**
                - Did pool symbol rotations cause significant position churn?

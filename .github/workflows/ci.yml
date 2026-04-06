@@ -60,7 +60,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r "$REQ_FILE"
           pip install ruff
-          python -m pip install -e external/QuantPlatformKit -e external/CryptoStrategies
+          python -m pip install --no-deps -e external/QuantPlatformKit -e external/CryptoStrategies
 
       - name: Compile scripts
         run: |

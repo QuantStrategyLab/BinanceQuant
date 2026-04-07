@@ -1,8 +1,9 @@
-quant-platform-kit @ git+https://github.com/QuantStrategyLab/QuantPlatformKit.git@v0.7.0
+quant-platform-kit @ git+https://github.com/QuantStrategyLab/QuantPlatformKit.git@v0.7.1
 crypto-strategies @ git+https://github.com/QuantStrategyLab/CryptoStrategies.git@v0.4.0
 python-binance
 pandas
 numpy
 requests
 google-cloud-firestore
+google-cloud-storage
 functions-framework

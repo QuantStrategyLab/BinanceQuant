@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 
+from quant_platform_kit.common.runtime_reports import persist_runtime_report
 from runtime_logging import RuntimeLogContext, emit_runtime_log
 
 
@@ -259,6 +260,19 @@ def run_live_cycle(
     report = execute_cycle(runtime)
     output_printer("\n".join(report.get("log_lines", [])))
     report_path = report_writer(report)
+    persisted_local_path = report_path
+    persisted_gcs_uri = None
+    try:
+        persisted = persist_runtime_report(
+            report,
+            output_path=report_path,
+            gcs_prefix_uri=os.getenv("EXECUTION_REPORT_GCS_URI"),
+            gcp_project_id=os.getenv("GCP_PROJECT_ID") or os.getenv("GOOGLE_CLOUD_PROJECT"),
+        )
+        persisted_local_path = persisted.local_path or report_path
+        persisted_gcs_uri = persisted.gcs_uri
+    except Exception as persist_exc:
+        output_printer(f"failed to persist archived execution report: {persist_exc}")
     report_status = str(report.get("status", "unknown"))
     status_event = {
         "ok": "strategy_cycle_completed",
@@ -271,7 +285,8 @@ def run_live_cycle(
         severity="INFO" if report_status in {"ok", "aborted"} else "ERROR",
         printer=output_printer,
         status=report_status,
-        report_path=report_path,
+        report_path=persisted_local_path,
+        report_gcs_uri=persisted_gcs_uri,
         total_equity_usdt=report.get("total_equity_usdt"),
         trend_equity_usdt=report.get("trend_equity_usdt"),
         degraded_mode_level=report.get("degraded_mode_level"),
@@ -282,4 +297,4 @@ def run_live_cycle(
     if report.get("status") != "ok" and exit_fn is not None:
         exit_fn(1)
 
-    return report, report_path
+    return report, persisted_local_path

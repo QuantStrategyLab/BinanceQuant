@@ -100,6 +100,56 @@ class CycleServiceTests(unittest.TestCase):
         self.assertEqual(end_log["event"], "strategy_cycle_completed")
         self.assertEqual(end_log["status"], "ok")
 
+    def test_run_live_cycle_uses_shared_runtime_report_archive(self):
+        observed = {}
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_path = os.path.join(tmp_dir, "execution_report.json")
+            with patch.dict(
+                os.environ,
+                {
+                    "STRATEGY_PROFILE": "crypto_leader_rotation",
+                    "SERVICE_NAME": "binance-quant",
+                    "EXECUTION_REPORT_GCS_URI": "gs://demo-bucket/runtime-reports",
+                    "GCP_PROJECT_ID": "demo-project",
+                },
+                clear=False,
+            ):
+                with patch(
+                    "application.cycle_service.persist_runtime_report",
+                    lambda report, **kwargs: observed.update(
+                        {
+                            "status": report["status"],
+                            "kwargs": kwargs,
+                        }
+                    )
+                    or SimpleNamespace(
+                        local_path=kwargs.get("output_path"),
+                        gcs_uri="gs://demo-bucket/runtime-reports/binance/crypto_leader_rotation/2026-04/run-001.json",
+                    ),
+                ):
+                    report, persisted_path = run_live_cycle(
+                        runtime_builder=lambda: SimpleNamespace(run_id="run-001", dry_run=False),
+                        execute_cycle=lambda _runtime: {
+                            "status": "ok",
+                            "log_lines": [],
+                            "error_summary": {"errors": []},
+                        },
+                        output_printer=lambda _text: None,
+                        report_writer=lambda report: write_execution_report(
+                            report,
+                            reports_dir=tmp_dir,
+                            filename="execution_report.json",
+                        ),
+                    )
+
+        self.assertEqual(report["status"], "ok")
+        self.assertEqual(persisted_path, output_path)
+        self.assertEqual(observed["status"], "ok")
+        self.assertEqual(observed["kwargs"]["output_path"], output_path)
+        self.assertEqual(observed["kwargs"]["gcs_prefix_uri"], "gs://demo-bucket/runtime-reports")
+        self.assertEqual(observed["kwargs"]["gcp_project_id"], "demo-project")
+
     def test_run_live_cycle_calls_exit_on_error(self):
         observed = {"exit_code": None}
 

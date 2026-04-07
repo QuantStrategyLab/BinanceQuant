@@ -1,4 +1,16 @@
+import os
+import sys
 import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+QPK_SRC = ROOT.parent / "QuantPlatformKit" / "src"
+if str(QPK_SRC) not in sys.path:
+    sys.path.insert(0, str(QPK_SRC))
 
 from runtime_support import ExecutionRuntime, build_execution_report, record_gating_event
 
@@ -17,10 +29,22 @@ class TestBuildExecutionReport(unittest.TestCase):
 
     def test_report_preserves_existing_fields(self):
         runtime = ExecutionRuntime(dry_run=False, run_id="test-002")
-        report = build_execution_report(runtime)
+        with patch.dict(
+            os.environ,
+            {
+                "STRATEGY_PROFILE": "crypto_leader_rotation",
+                "SERVICE_NAME": "binance-runtime",
+                "LOG_DEPLOY_TARGET": "vps",
+            },
+            clear=False,
+        ):
+            report = build_execution_report(runtime)
         self.assertEqual(report["status"], "ok")
         self.assertEqual(report["run_id"], "test-002")
         self.assertFalse(report["dry_run"])
+        self.assertEqual(report["schema_version"], "runtime_report.v1")
+        self.assertEqual(report["platform"], "binance")
+        self.assertEqual(report["strategy_profile"], "crypto_leader_rotation")
         self.assertIn("buy_sell_intents", report)
         self.assertIn("log_lines", report)
 

@@ -1,6 +1,9 @@
+import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Optional
+
+from quant_platform_kit.common.runtime_reports import build_runtime_report_base
 
 
 @dataclass
@@ -31,7 +34,19 @@ class ExecutionRuntime:
 
 
 def build_execution_report(runtime):
-    return {
+    report = build_runtime_report_base(
+        platform="binance",
+        deploy_target=os.getenv("LOG_DEPLOY_TARGET", "vps"),
+        service_name=os.getenv("SERVICE_NAME", "binance-platform"),
+        strategy_profile=os.getenv("STRATEGY_PROFILE", "crypto_leader_rotation"),
+        strategy_domain=os.getenv("STRATEGY_DOMAIN", "crypto"),
+        run_id=str(runtime.run_id),
+        run_source="github_actions" if os.getenv("GITHUB_RUN_ID") or os.getenv("GITHUB_ACTIONS") else "runtime",
+        dry_run=bool(runtime.dry_run),
+        started_at=runtime.now_utc,
+        status="ok",
+    )
+    report.update({
         "status": "ok",
         "run_id": str(runtime.run_id),
         "dry_run": bool(runtime.dry_run),
@@ -59,7 +74,8 @@ def build_execution_report(runtime):
         "circuit_breaker_triggered": False,
         "degraded_mode_level": None,
         "upstream_pool_symbols": [],
-    }
+    })
+    return report
 
 
 def append_report_error(report, message, *, stage="runtime"):

@@ -75,6 +75,7 @@ jobs:
           TG_TOKEN: ${{ secrets.TG_TOKEN }}
           GLOBAL_TELEGRAM_CHAT_ID: ${{ vars.GLOBAL_TELEGRAM_CHAT_ID }}
           NOTIFY_LANG: ${{ vars.NOTIFY_LANG }}
+          EXECUTION_REPORT_GCS_URI: ${{ vars.EXECUTION_REPORT_GCS_URI }}
           VALIDATE_ONLY: ${{ github.event.inputs.validate_only || 'false' }}
 
       - name: 5. Capture execution timestamp

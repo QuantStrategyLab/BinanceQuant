@@ -8,6 +8,7 @@ from typing import Any, Callable, Mapping
 from quant_platform_kit.strategy_contracts import StrategyContext, StrategyDecision, StrategyEntrypoint
 
 from strategy_loader import load_strategy_entrypoint_for_profile
+from strategy_registry import BINANCE_PLATFORM, resolve_strategy_metadata
 from trend_pool_support import get_default_live_pool_candidates as tp_get_default_live_pool_candidates
 
 
@@ -115,7 +116,13 @@ class LoadedStrategyRuntime:
         return StrategyEvaluationResult(
             decision=decision,
             account_metrics=dict(account_metrics),
-            metadata={"strategy_profile": self.profile},
+            metadata={
+                "strategy_profile": self.profile,
+                "strategy_display_name": resolve_strategy_metadata(
+                    self.profile,
+                    platform_id=BINANCE_PLATFORM,
+                ).display_name,
+            },
         )
 
 

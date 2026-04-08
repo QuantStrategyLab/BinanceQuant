@@ -33,6 +33,8 @@ class RuntimeConfigSupportTests(unittest.TestCase):
         self.assertEqual(settings.btc_status_report_interval_hours, 24)
         self.assertTrue(settings.allow_new_trend_entries_on_degraded)
         self.assertEqual(settings.strategy_profile, DEFAULT_STRATEGY_PROFILE)
+        self.assertEqual(settings.strategy_display_name, "Crypto Leader Rotation")
+        self.assertEqual(settings.strategy_display_name_localized, "Crypto Leader Rotation")
         self.assertEqual(settings.strategy_domain, CRYPTO_DOMAIN)
 
     def test_load_cycle_execution_settings_rejects_unknown_strategy_profile(self):
@@ -73,6 +75,8 @@ class RuntimeConfigSupportTests(unittest.TestCase):
         self.assertEqual(runtime.api_secret, "api-secret")
         self.assertEqual(runtime.tg_token, "tg-token")
         self.assertEqual(runtime.tg_chat_id, "chat-id")
+        self.assertEqual(runtime.strategy_profile, DEFAULT_STRATEGY_PROFILE)
+        self.assertEqual(runtime.strategy_display_name, "Crypto Leader Rotation")
         self.assertIs(runtime.state_loader, state_loader)
         self.assertIs(runtime.state_writer, state_writer)
         self.assertIs(runtime.notifier, notifier)

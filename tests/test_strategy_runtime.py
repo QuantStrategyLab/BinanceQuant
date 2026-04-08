@@ -101,6 +101,7 @@ class StrategyRuntimeTests(unittest.TestCase):
         )
 
         diagnostics = evaluation.decision.diagnostics
+        self.assertEqual(evaluation.metadata["strategy_display_name"], "Crypto Leader Rotation")
         self.assertIn("planned_trend_buys", diagnostics)
         self.assertIn("eligible_buy_symbols", diagnostics)
         self.assertIn("sell_reasons", diagnostics)

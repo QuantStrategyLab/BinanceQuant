@@ -722,6 +722,7 @@ def _resolve_strategy_evaluation(
         trend_universe_symbols=tuple(runtime_trend_universe.keys()),
         state=state,
         translator=t,
+        balances=balances,
         now_utc=runtime.now_utc,
         allow_new_trend_entries=allow_new_trend_entries,
         allow_rotation_refresh=allow_pool_refresh,

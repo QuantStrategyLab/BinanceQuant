@@ -184,7 +184,7 @@ _TEXTS = {
         "error_label": "错误",
         "qty_zero_msg": "格式化后的数量为 0，未执行",
         "circuit_msg": "趋势层当日收益触发熔断 ({pnl})；趋势仓位已清空，BTC 定投继续运行。",
-        "trend_pool_source_line": "📡 趋势池来源: {source_kind} | mode={mode} | version={version} | as_of={as_of_date} | project={source_project}",
+        "trend_pool_source_line": "📡 趋势池来源: {source_kind} | 模式={mode} | 版本={version} | 日期={as_of_date} | 项目={source_project}",
         "trend_pool_degraded_buy_pause": "⚠️ 上游趋势池处于降级状态；当前暂停新的趋势买入，并继续沿用现有月度执行池。",
         "trend_pool_loaded_fresh_upstream": "已从 {source_label} 载入最新上游趋势池。",
         "trend_pool_using_last_known_good": "最新上游趋势池校验失败，改用上次可用的上游趋势池。",

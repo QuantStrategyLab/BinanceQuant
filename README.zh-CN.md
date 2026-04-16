@@ -15,7 +15,7 @@
 
 完整策略说明现在放在 [`CryptoStrategies`](https://github.com/QuantStrategyLab/CryptoStrategies#crypto_leader_rotation)。下面这些章节主要保留下游执行侧的约束、运行时行为和运维说明。
 
-**artifact contract：** 本地 replay、monitor 和 review 工具现在按显式 live-pool artifact contract 取数：runtime 注入 payload、Firestore payload、`TREND_POOL_FILE`、仓库内 `artifacts/live_pool_legacy.json`，最后才是兼容 fallback 候选。`../CryptoLeaderRotation` 只是不保证存在的候选之一，不再是默认唯一来源。
+**artifact contract：** 本地 replay、monitor 和 review 工具现在按显式 strategy artifact contract 取数：runtime 注入 payload、Firestore payload、`STRATEGY_ARTIFACT_FILE`、仓库内 `artifacts/live_pool_legacy.json`，最后才是兼容 fallback 候选。旧的 `TREND_POOL_*` 仍作为 `crypto_leader_rotation` 的兼容别名。`../CryptoLeaderRotation` 只是不保证存在的候选之一，不再是默认唯一来源。
 
 **Python 版本：** 推荐 `Python 3.11`。CI 固定在 `3.11`，本地辅助命令会优先使用 `python3.11`，没有时回退到 `python3`。
 
@@ -101,9 +101,9 @@
 
 **候选池来源：** 优先使用上游 live pool。读取顺序为：
 
-1. 新鲜的上游 Firestore payload
+1. 新鲜的上游 Firestore payload（主配置：`STRATEGY_ARTIFACT_FIRESTORE_COLLECTION` / `STRATEGY_ARTIFACT_FIRESTORE_DOCUMENT`；兼容别名：`TREND_POOL_FIRESTORE_COLLECTION` / `TREND_POOL_FIRESTORE_DOCUMENT`）
 2. Firestore 状态中记录的 last known good 上游 payload
-3. 通过校验的本地 upstream 文件 fallback
+3. 通过校验的本地 upstream 文件 fallback（主配置：`STRATEGY_ARTIFACT_FILE`；兼容别名：`TREND_POOL_FILE`）
 4. 静态 `TREND_UNIVERSE` 紧急 fallback
 
 **官方输入池：** 上游发布 5 币 live pool，本仓库把这 5 个币视为月度官方输入集。
@@ -167,9 +167,9 @@
 
 读取顺序：
 
-1. Firestore `strategy` / `CRYPTO_LEADER_ROTATION_LIVE_POOL`
+1. Firestore `strategy` / `CRYPTO_LEADER_ROTATION_LIVE_POOL`（主配置：`STRATEGY_ARTIFACT_FIRESTORE_COLLECTION` / `STRATEGY_ARTIFACT_FIRESTORE_DOCUMENT`；兼容别名：`TREND_POOL_FIRESTORE_COLLECTION` / `TREND_POOL_FIRESTORE_DOCUMENT`）
 2. 状态里保存的 last known good 上游 payload
-3. 本地 `live_pool_legacy.json` 或 `live_pool.json`
+3. 本地 `live_pool_legacy.json` 或 `live_pool.json`（主配置：`STRATEGY_ARTIFACT_FILE`；兼容别名：`TREND_POOL_FILE`）
 4. 静态 `TREND_UNIVERSE`
 
 **稳定字段：**
@@ -185,9 +185,9 @@
 **降级模式规则：**
 
 - 上游 payload 必须有非空币种列表、可解析的 `as_of_date`、可接受的 `mode`
-- 新鲜度由 `TREND_POOL_MAX_AGE_DAYS` 和 `as_of_date` 控制
+- 新鲜度由 `STRATEGY_ARTIFACT_MAX_AGE_DAYS` 和 `as_of_date` 控制；`TREND_POOL_MAX_AGE_DAYS` 仍可兼容使用
 - 如果 fresh upstream 过期或格式错误，不会把弱 fallback 当成等价替代
-- 进入 degraded mode 后，默认暂停新的趋势买入，除非显式设置 `TREND_POOL_ALLOW_NEW_ENTRIES_ON_DEGRADED=1`
+- 进入 degraded mode 后，默认暂停新的趋势买入，除非显式设置 `STRATEGY_ARTIFACT_ALLOW_NEW_ENTRIES_ON_DEGRADED=1`，或使用兼容别名 `TREND_POOL_ALLOW_NEW_ENTRIES_ON_DEGRADED=1`
 - 已退役币种会保留在状态中直到真正卖出
 
 ## 环境变量
@@ -209,13 +209,15 @@
 | 变量 | 说明 |
 |---|---|
 | `BTC_STATUS_REPORT_INTERVAL_HOURS` | BTC 状态报告间隔，默认 `24` |
-| `TREND_POOL_FILE` | 本地 `live_pool_legacy.json` 路径 |
-| `TREND_POOL_FIRESTORE_COLLECTION` | 趋势池 Firestore collection，默认 `strategy` |
-| `TREND_POOL_FIRESTORE_DOCUMENT` | 趋势池 Firestore document，默认 `CRYPTO_LEADER_ROTATION_LIVE_POOL` |
-| `TREND_POOL_MAX_AGE_DAYS` | 上游 `as_of_date` 允许的最大天数，默认 `45` |
-| `TREND_POOL_ACCEPTABLE_MODES` | 可接受的上游 mode，默认 `core_major` |
-| `TREND_POOL_EXPECTED_SIZE` | 上游 live pool 期望数量，默认 `5` |
-| `TREND_POOL_ALLOW_NEW_ENTRIES_ON_DEGRADED` | degraded mode 下是否允许趋势新开仓，默认 `false` |
+| `STRATEGY_PROFILE` | 策略 profile 选择器，当前默认并仅支持 `crypto_leader_rotation` |
+| `STRATEGY_ARTIFACT_FILE` | 本地 live-pool artifact 路径；兼容别名：`TREND_POOL_FILE` |
+| `STRATEGY_ARTIFACT_MANIFEST_FILE` | 可选本地 artifact manifest 路径，供运维工具使用 |
+| `STRATEGY_ARTIFACT_FIRESTORE_COLLECTION` | live artifact 的 Firestore collection，默认 `strategy`；兼容别名：`TREND_POOL_FIRESTORE_COLLECTION` |
+| `STRATEGY_ARTIFACT_FIRESTORE_DOCUMENT` | live artifact 的 Firestore document，默认 `CRYPTO_LEADER_ROTATION_LIVE_POOL`；兼容别名：`TREND_POOL_FIRESTORE_DOCUMENT` |
+| `STRATEGY_ARTIFACT_MAX_AGE_DAYS` | 上游 `as_of_date` 允许的最大天数，默认 `45`；兼容别名：`TREND_POOL_MAX_AGE_DAYS` |
+| `STRATEGY_ARTIFACT_ACCEPTABLE_MODES` | 可接受的上游 mode，默认 `core_major`；兼容别名：`TREND_POOL_ACCEPTABLE_MODES` |
+| `STRATEGY_ARTIFACT_EXPECTED_SIZE` | 上游 live pool 期望数量，默认 `5`；兼容别名：`TREND_POOL_EXPECTED_SIZE` |
+| `STRATEGY_ARTIFACT_ALLOW_NEW_ENTRIES_ON_DEGRADED` | degraded mode 下是否允许趋势新开仓，默认 `false`；兼容别名：`TREND_POOL_ALLOW_NEW_ENTRIES_ON_DEGRADED` |
 | `NOTIFY_LANG` | 日志和通知语言: `en`（英文，默认）或 `zh`（中文） |
 
 ## 通知格式

@@ -5,6 +5,11 @@ from pathlib import Path
 
 from live_services import get_firestore_client
 from notify_i18n_support import translate as t
+from strategy_artifact_support import (
+    get_strategy_artifact_csv,
+    get_strategy_artifact_env,
+    get_strategy_artifact_int,
+)
 
 
 def infer_base_asset(symbol):
@@ -85,9 +90,27 @@ def extract_trend_pool_symbols(payload, symbol_map):
 
 def get_trend_pool_contract_settings(*, max_age_days_default, acceptable_modes_default, expected_pool_size_default):
     return {
-        "max_age_days": max(0, get_env_int("TREND_POOL_MAX_AGE_DAYS", max_age_days_default)),
-        "acceptable_modes": get_env_csv("TREND_POOL_ACCEPTABLE_MODES", acceptable_modes_default),
-        "expected_pool_size": max(1, get_env_int("TREND_POOL_EXPECTED_SIZE", expected_pool_size_default)),
+        "max_age_days": max(
+            0,
+            get_strategy_artifact_int(
+                "STRATEGY_ARTIFACT_MAX_AGE_DAYS",
+                "TREND_POOL_MAX_AGE_DAYS",
+                max_age_days_default,
+            ),
+        ),
+        "acceptable_modes": get_strategy_artifact_csv(
+            "STRATEGY_ARTIFACT_ACCEPTABLE_MODES",
+            "TREND_POOL_ACCEPTABLE_MODES",
+            acceptable_modes_default,
+        ),
+        "expected_pool_size": max(
+            1,
+            get_strategy_artifact_int(
+                "STRATEGY_ARTIFACT_EXPECTED_SIZE",
+                "TREND_POOL_EXPECTED_SIZE",
+                expected_pool_size_default,
+            ),
+        ),
     }
 
 
@@ -237,8 +260,16 @@ def load_trend_pool_from_firestore(
     default_collection,
     default_document,
 ):
-    collection = os.getenv("TREND_POOL_FIRESTORE_COLLECTION", default_collection)
-    document = os.getenv("TREND_POOL_FIRESTORE_DOCUMENT", default_document)
+    collection = get_strategy_artifact_env(
+        "STRATEGY_ARTIFACT_FIRESTORE_COLLECTION",
+        "TREND_POOL_FIRESTORE_COLLECTION",
+        default_collection,
+    )
+    document = get_strategy_artifact_env(
+        "STRATEGY_ARTIFACT_FIRESTORE_DOCUMENT",
+        "TREND_POOL_FIRESTORE_DOCUMENT",
+        default_document,
+    )
     settings = settings or {}
     source_label = f"firestore:{collection}/{document}"
 

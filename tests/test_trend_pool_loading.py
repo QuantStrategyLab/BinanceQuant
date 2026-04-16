@@ -1,6 +1,7 @@
 import sys
 import types
 import unittest
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -117,6 +118,25 @@ class TrendPoolLoadingTests(unittest.TestCase):
 
         self.assertFalse(result["ok"])
         self.assertIn("stale", " ".join(result["errors"]))
+
+    def test_strategy_artifact_env_aliases_override_legacy_trend_pool_settings(self):
+        with patch.dict(
+            os.environ,
+            {
+                "STRATEGY_ARTIFACT_MAX_AGE_DAYS": "12",
+                "STRATEGY_ARTIFACT_ACCEPTABLE_MODES": "core_major,shadow",
+                "STRATEGY_ARTIFACT_EXPECTED_SIZE": "3",
+                "TREND_POOL_MAX_AGE_DAYS": "45",
+                "TREND_POOL_ACCEPTABLE_MODES": "legacy",
+                "TREND_POOL_EXPECTED_SIZE": "5",
+            },
+            clear=False,
+        ):
+            settings = main.get_trend_pool_contract_settings()
+
+        self.assertEqual(settings["max_age_days"], 12)
+        self.assertEqual(settings["acceptable_modes"], ["core_major", "shadow"])
+        self.assertEqual(settings["expected_pool_size"], 3)
 
     def test_resolve_trend_pool_source_prefers_last_known_good_before_local_file(self):
         last_good_payload = build_payload(as_of_date="2026-02-15")

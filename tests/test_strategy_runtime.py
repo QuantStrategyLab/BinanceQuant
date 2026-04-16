@@ -38,6 +38,9 @@ class StrategyRuntimeTests(unittest.TestCase):
         self.assertEqual(runtime.runtime_adapter.portfolio_input_name, "portfolio_snapshot")
         self.assertTrue(str(runtime.default_local_artifact_path).endswith("BinancePlatform/artifacts/live_pool_legacy.json"))
         self.assertEqual(runtime.artifact_contract["version"], "crypto_leader_rotation.live_pool.v1")
+        self.assertTrue(runtime.artifact_contract["requires_artifacts"])
+        self.assertTrue(runtime.artifact_contract["requires_manifest"])
+        self.assertEqual(runtime.artifact_contract["config_source_policy"], "none")
         self.assertGreaterEqual(len(runtime.local_artifact_candidates), 1)
         self.assertIn(str(runtime.default_local_artifact_path), runtime.artifact_contract["default_local_candidates"])
 

@@ -12,6 +12,7 @@ from quant_platform_kit.strategy_contracts import (
     StrategyEntrypoint,
     StrategyRuntimeAdapter,
     build_strategy_context_from_available_inputs,
+    resolve_strategy_artifact_contract,
 )
 
 from crypto_strategies import get_platform_runtime_adapter
@@ -48,10 +49,17 @@ class LoadedStrategyRuntime:
 
     @property
     def artifact_contract(self) -> dict[str, Any]:
+        contract = resolve_strategy_artifact_contract(self.runtime_adapter)
         return {
-            "version": str(self.merged_runtime_config.get("artifact_contract_version", "")),
+            "version": str(
+                contract.snapshot_contract_version
+                or self.merged_runtime_config.get("artifact_contract_version", "")
+            ),
             "max_age_days": int(self.merged_runtime_config.get("artifact_max_age_days", 45)),
             "acceptable_modes": tuple(self.merged_runtime_config.get("artifact_acceptable_modes", ())),
+            "requires_artifacts": bool(contract.requires_snapshot_artifacts),
+            "requires_manifest": bool(contract.requires_snapshot_manifest_path),
+            "config_source_policy": str(contract.config_source_policy),
             "default_local_candidates": tuple(str(path) for path in self.local_artifact_candidates),
         }
 

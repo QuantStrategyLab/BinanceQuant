@@ -15,7 +15,7 @@ The current `crypto_leader_rotation` pure strategy modules are sourced from `Cry
 
 Full strategy documentation now lives in [`CryptoStrategies`](https://github.com/QuantStrategyLab/CryptoStrategies#crypto_leader_rotation). The sections below focus on downstream execution assumptions and runtime behavior.
 
-**Artifact contract:** Local replay and monitoring helpers now follow an explicit live-pool artifact contract: runtime payload, Firestore payload, `TREND_POOL_FILE`, repo-local `artifacts/live_pool_legacy.json`, then compatible fallback candidates. A sibling `../CryptoLeaderRotation` checkout is only one fallback candidate, not the sole default source.
+**Artifact contract:** Local replay and monitoring helpers now follow an explicit strategy artifact contract: runtime payload, Firestore payload, `STRATEGY_ARTIFACT_FILE`, repo-local `artifacts/live_pool_legacy.json`, then compatible fallback candidates. The old `TREND_POOL_*` settings remain compatibility aliases for `crypto_leader_rotation`. A sibling `../CryptoLeaderRotation` checkout is only one fallback candidate, not the sole default source.
 
 **Python runtime:** Prefer Python `3.11`. CI is pinned to 3.11, and local helper commands now prefer `python3.11` when available while still falling back to `python3`.
 
@@ -170,9 +170,9 @@ Runs hourly; signals are daily trend and risk, not high-frequency.
 
 **Default:** CryptoLeaderRotation monthly output.
 
-1. Firestore `strategy` / `CRYPTO_LEADER_ROTATION_LIVE_POOL` (override: `TREND_POOL_FIRESTORE_COLLECTION`, `TREND_POOL_FIRESTORE_DOCUMENT`).
+1. Firestore `strategy` / `CRYPTO_LEADER_ROTATION_LIVE_POOL` (override: `STRATEGY_ARTIFACT_FIRESTORE_COLLECTION`, `STRATEGY_ARTIFACT_FIRESTORE_DOCUMENT`; legacy aliases: `TREND_POOL_FIRESTORE_COLLECTION`, `TREND_POOL_FIRESTORE_DOCUMENT`).
 2. Last known good upstream payload persisted in Firestore state after a successful accepted upstream read.
-3. Local `live_pool_legacy.json` or `live_pool.json` style file (override: `TREND_POOL_FILE`).
+3. Local `live_pool_legacy.json` or `live_pool.json` style file (override: `STRATEGY_ARTIFACT_FILE`; legacy alias: `TREND_POOL_FILE`).
 4. Static `TREND_UNIVERSE` as emergency fallback only.
 
 **Stable upstream contract fields:**
@@ -223,9 +223,9 @@ The monthly execution pool is rebuilt when the accepted upstream `version` / `as
 **Validation and degraded mode:**
 
 - Upstream payloads must have a non-empty symbol set, a parseable `as_of_date`, and an acceptable `mode`.
-- Freshness is validated with `TREND_POOL_MAX_AGE_DAYS` against the upstream `as_of_date`.
+- Freshness is validated with `STRATEGY_ARTIFACT_MAX_AGE_DAYS` against the upstream `as_of_date`; `TREND_POOL_MAX_AGE_DAYS` remains a compatibility alias.
 - If the fresh upstream payload is stale or malformed, the runtime does not silently treat weaker fallbacks as equivalent.
-- In degraded mode, the script prefers the last known good upstream payload, then a validated local file fallback, and pauses new trend buys by default unless `TREND_POOL_ALLOW_NEW_ENTRIES_ON_DEGRADED=1`.
+- In degraded mode, the script prefers the last known good upstream payload, then a validated local file fallback, and pauses new trend buys by default unless `STRATEGY_ARTIFACT_ALLOW_NEW_ENTRIES_ON_DEGRADED=1` or the legacy alias `TREND_POOL_ALLOW_NEW_ENTRIES_ON_DEGRADED=1`.
 - Retired symbols stay in state until sold; active pool changes are source-tagged in state for auditability.
 
 ## Environment
@@ -245,6 +245,18 @@ Across multiple quant repositories, `GLOBAL_TELEGRAM_CHAT_ID` and `NOTIFY_LANG` 
 Optional:
 
 | Variable | Description |
+|----------|-------------|
+| `STRATEGY_PROFILE` | Strategy profile selector (default: `crypto_leader_rotation`; supported value: `crypto_leader_rotation`) |
+| `STRATEGY_ARTIFACT_FILE` | Local live-pool artifact path; legacy alias: `TREND_POOL_FILE` |
+| `STRATEGY_ARTIFACT_MANIFEST_FILE` | Optional local artifact manifest path for operator tooling |
+| `STRATEGY_ARTIFACT_FIRESTORE_COLLECTION` | Firestore collection for the live artifact (default `strategy`; legacy alias: `TREND_POOL_FIRESTORE_COLLECTION`) |
+| `STRATEGY_ARTIFACT_FIRESTORE_DOCUMENT` | Firestore document for the live artifact (default `CRYPTO_LEADER_ROTATION_LIVE_POOL`; legacy alias: `TREND_POOL_FIRESTORE_DOCUMENT`) |
+| `STRATEGY_ARTIFACT_MAX_AGE_DAYS` | Max allowed upstream `as_of_date` age before payload is stale (default `45`; legacy alias: `TREND_POOL_MAX_AGE_DAYS`) |
+| `STRATEGY_ARTIFACT_ACCEPTABLE_MODES` | Comma-separated acceptable upstream modes (default `core_major`; legacy alias: `TREND_POOL_ACCEPTABLE_MODES`) |
+| `STRATEGY_ARTIFACT_EXPECTED_SIZE` | Expected live-pool size for contract checks (default `5`; legacy alias: `TREND_POOL_EXPECTED_SIZE`) |
+| `STRATEGY_ARTIFACT_ALLOW_NEW_ENTRIES_ON_DEGRADED` | Allow trend buys while using last-known-good or fallback sources (default `false`; legacy alias: `TREND_POOL_ALLOW_NEW_ENTRIES_ON_DEGRADED`) |
+| `BTC_STATUS_REPORT_INTERVAL_HOURS` | Interval for BTC status report (default `24`) |
+| `NOTIFY_LANG` | Log and notification language: `en` (English, default) or `zh` (Chinese) |
 
 ---
 
@@ -294,17 +306,6 @@ Optional:
 - `GOOGLE_APPLICATION_CREDENTIALS`
 
 可选环境变量、趋势池契约、日志和月度审阅的完整中文说明，见 [README.zh-CN.md](README.zh-CN.md)。
-|----------|-------------|
-| `BTC_STATUS_REPORT_INTERVAL_HOURS` | Interval for BTC status report (default 24) |
-| `TREND_POOL_FILE` | Path to `live_pool_legacy.json` |
-| `TREND_POOL_FIRESTORE_COLLECTION` | Firestore collection for live pool (default `strategy`) |
-| `TREND_POOL_FIRESTORE_DOCUMENT` | Firestore document for live pool (default `CRYPTO_LEADER_ROTATION_LIVE_POOL`) |
-| `TREND_POOL_MAX_AGE_DAYS` | Max allowed age for upstream `as_of_date` before payload is treated as stale (default `45`) |
-| `TREND_POOL_ACCEPTABLE_MODES` | Comma-separated allowed upstream modes (default `core_major`) |
-| `TREND_POOL_EXPECTED_SIZE` | Expected upstream live-pool size for contract checks (default `5`) |
-| `TREND_POOL_ALLOW_NEW_ENTRIES_ON_DEGRADED` | Allow trend buys when running on last-known-good or fallback pool sources (default `false`) |
-| `STRATEGY_PROFILE` | Strategy profile selector (default: `crypto_leader_rotation`; supported value: `crypto_leader_rotation`) |
-| `NOTIFY_LANG` | Log and notification language: `en` (English, default) or `zh` (Chinese) |
 
 ## Notification Format
 

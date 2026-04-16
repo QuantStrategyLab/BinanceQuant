@@ -45,6 +45,19 @@ class RuntimeConfigSupportTests(unittest.TestCase):
         self.assertEqual(settings.strategy_display_name_localized, "Crypto Leader Rotation")
         self.assertEqual(settings.strategy_domain, CRYPTO_DOMAIN)
 
+    def test_load_cycle_execution_settings_accepts_strategy_artifact_degraded_alias(self):
+        with patch.dict(
+            os.environ,
+            {
+                "STRATEGY_ARTIFACT_ALLOW_NEW_ENTRIES_ON_DEGRADED": "1",
+                "TREND_POOL_ALLOW_NEW_ENTRIES_ON_DEGRADED": "0",
+            },
+            clear=False,
+        ):
+            settings = load_cycle_execution_settings()
+
+        self.assertTrue(settings.allow_new_trend_entries_on_degraded)
+
     def test_load_cycle_execution_settings_rejects_unknown_strategy_profile(self):
         with patch.dict(os.environ, {"STRATEGY_PROFILE": "global_etf_rotation"}, clear=False):
             with self.assertRaisesRegex(ValueError, "Unsupported STRATEGY_PROFILE"):
@@ -164,7 +177,13 @@ class RuntimeConfigSupportTests(unittest.TestCase):
         self.assertIn("BINANCE_API_KEY", plan["keep_env"])
         self.assertIn("BINANCE_API_SECRET", plan["keep_env"])
         self.assertIn("TG_TOKEN", plan["keep_env"])
+        self.assertIn("STRATEGY_ARTIFACT_FILE", plan["optional_env"])
+        self.assertIn("STRATEGY_ARTIFACT_MANIFEST_FILE", plan["optional_env"])
         self.assertIn("TREND_POOL_FILE", plan["optional_env"])
+        self.assertEqual(
+            plan["hints"]["strategy_artifact_default_firestore_document"],
+            "CRYPTO_LEADER_ROTATION_LIVE_POOL",
+        )
         self.assertEqual(plan["remove_if_present"], [])
 
     def test_switch_env_plan_script_table_contains_expected_sections(self):

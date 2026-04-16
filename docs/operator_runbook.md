@@ -36,7 +36,7 @@ It is not responsible for:
 ## Normal Live Flow
 
 1. Load runtime credentials and Firestore state.
-2. Resolve the upstream trend pool in this order:
+2. Resolve the upstream strategy artifact in this order:
    - fresh upstream Firestore payload
    - last known good upstream payload from state
    - validated local upstream file fallback
@@ -75,13 +75,28 @@ Degraded mode:
 
 - Source is `last_known_good`, `local_file`, or `static`
 - New trend buys are paused by default
-- Set `TREND_POOL_ALLOW_NEW_ENTRIES_ON_DEGRADED=1` only if you intentionally want degraded-mode entries
+- Set `STRATEGY_ARTIFACT_ALLOW_NEW_ENTRIES_ON_DEGRADED=1` only if you intentionally want degraded-mode entries; `TREND_POOL_ALLOW_NEW_ENTRIES_ON_DEGRADED=1` remains a compatibility alias for the current live profile
 
 Interpretation:
 
 - `last_known_good` means fresh upstream validation failed, but a previously accepted upstream payload is still available in state
-- `local_file` means upstream live access failed and the runtime fell back to a validated local file from CryptoLeaderRotation
+- `local_file` means upstream live access failed and the runtime fell back to a validated local file from the configured `STRATEGY_ARTIFACT_FILE`, the repo-local artifact, or a compatible `CryptoLeaderRotation` checkout
 - `static` is emergency-only and should be treated as lowest-confidence operation
+
+## Strategy Artifact Settings
+
+Use the generic `STRATEGY_ARTIFACT_*` names for new crypto strategies. The older `TREND_POOL_*` names are accepted only as compatibility aliases for `crypto_leader_rotation`.
+
+Primary settings:
+
+- `STRATEGY_PROFILE`: live profile selector; current supported value is `crypto_leader_rotation`
+- `STRATEGY_ARTIFACT_FIRESTORE_COLLECTION`: upstream artifact collection, default `strategy`
+- `STRATEGY_ARTIFACT_FIRESTORE_DOCUMENT`: upstream artifact document, default `CRYPTO_LEADER_ROTATION_LIVE_POOL`
+- `STRATEGY_ARTIFACT_FILE`: local fallback artifact path
+- `STRATEGY_ARTIFACT_MAX_AGE_DAYS`: freshness window for upstream `as_of_date`
+- `STRATEGY_ARTIFACT_ACCEPTABLE_MODES`: comma-separated accepted upstream modes
+- `STRATEGY_ARTIFACT_EXPECTED_SIZE`: expected live-pool size
+- `STRATEGY_ARTIFACT_ALLOW_NEW_ENTRIES_ON_DEGRADED`: explicit degraded-entry override
 
 ## Runtime Expectations By Failure Type
 

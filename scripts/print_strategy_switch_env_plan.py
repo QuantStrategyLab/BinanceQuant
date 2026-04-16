@@ -42,6 +42,14 @@ def build_switch_plan(profile: str) -> dict[str, object]:
     optional_env = [
         "NOTIFY_LANG",
         "BTC_STATUS_REPORT_INTERVAL_HOURS",
+        "STRATEGY_ARTIFACT_FILE",
+        "STRATEGY_ARTIFACT_MANIFEST_FILE",
+        "STRATEGY_ARTIFACT_FIRESTORE_COLLECTION",
+        "STRATEGY_ARTIFACT_FIRESTORE_DOCUMENT",
+        "STRATEGY_ARTIFACT_MAX_AGE_DAYS",
+        "STRATEGY_ARTIFACT_ACCEPTABLE_MODES",
+        "STRATEGY_ARTIFACT_EXPECTED_SIZE",
+        "STRATEGY_ARTIFACT_ALLOW_NEW_ENTRIES_ON_DEGRADED",
         "TREND_POOL_FILE",
         "TREND_POOL_FIRESTORE_COLLECTION",
         "TREND_POOL_FIRESTORE_DOCUMENT",
@@ -51,7 +59,8 @@ def build_switch_plan(profile: str) -> dict[str, object]:
         "TREND_POOL_ALLOW_NEW_ENTRIES_ON_DEGRADED",
     ]
     notes = [
-        "Binance runtime has no broker-side profile-specific snapshot env today; switching is mainly STRATEGY_PROFILE plus the shared trend-pool artifact settings.",
+        "Binance runtime resolves strategy artifacts through STRATEGY_ARTIFACT_* settings; TREND_POOL_* remains accepted as a compatibility alias for crypto_leader_rotation.",
+        "Switching is mainly STRATEGY_PROFILE plus the shared strategy artifact settings.",
         "Keep exchange credentials and Telegram settings stable across strategy switches.",
     ]
 
@@ -68,9 +77,10 @@ def build_switch_plan(profile: str) -> dict[str, object]:
         "optional_env": optional_env,
         "remove_if_present": [],
         "hints": {
-            "trend_pool_default_firestore_collection": "strategy",
-            "trend_pool_default_firestore_document": "CRYPTO_LEADER_ROTATION_LIVE_POOL",
+            "strategy_artifact_default_firestore_collection": "strategy",
+            "strategy_artifact_default_firestore_document": "CRYPTO_LEADER_ROTATION_LIVE_POOL",
             "default_local_artifact": str(ROOT / "artifacts" / "live_pool_legacy.json"),
+            "default_local_artifact_manifest": str(ROOT / "artifacts" / "artifact_manifest.json"),
         },
         "notes": notes,
     }
